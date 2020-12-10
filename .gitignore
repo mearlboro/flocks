@@ -1,0 +1,8 @@
+# Simulation results are not saved to git, but .keep files are included in the
+# empty directories to preserve the relevant structure, and gif.sh is not included
+out/*
+!out/gif.sh
+
+out/txt/*
+out/img/*
+out/gif/*
