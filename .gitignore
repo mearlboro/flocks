@@ -6,3 +6,23 @@ out/*
 out/txt/*
 out/img/*
 out/gif/*
+
+# Vim-specific
+*.swp
+*.swo
+
+
+# Python-specific
+__pycache__/
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
