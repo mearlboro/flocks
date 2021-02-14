@@ -47,6 +47,8 @@ class VicsekModel:
         e
             perturbation. Noise dE added in each evolution step is uniform
             distributed in [-E/2, E/2]
+        bounded
+            if True, steer around area bounds, with radius r, else wrap-around
         v  = 0.3
             absolute velocity of each particle
         r  = 1
@@ -61,6 +63,8 @@ class VicsekModel:
         self.r  = 1
         self.dt = 1
 
+        self.bounded = bounded
+
         self.X = np.random.uniform(0, l, size = (n, 2))
         self.A = np.random.uniform(-pi, pi, size = (n, 1))
 
@@ -68,6 +72,8 @@ class VicsekModel:
         # and we also typeset a figure title
         rho = round(float(n) / l ** 2, 2)
         self.string = f"vicsek_eta{e}_rho{rho}"
+        if bounded:
+            self.string += '_bounded'
         self.title  = f"$\eta$ = {e}, $\\rho$ = {rho}"
 
         # we count the time that has passed with every update
@@ -114,9 +120,24 @@ class VicsekModel:
         update X[i]
         """
 
+        # find new position and velocity according to normal rule
         self.updateA(i)
         Vi = ang_to_vec(self.A[i]) * self.v
-        self.X[i] = bounds_wrap(self.X[i] + Vi * self.dt, self.l)
+        self.X[i] = self.X[i] + Vi * self.dt
+
+        # if it's out of bounds, correct based on simulation type
+        if out_of_bounds(self.X[i], self.l):
+            # for a toroidal world, new positions are wrapped around the space
+            if not self.bounded:
+                self.X[i] = bounds_wrap(self.X[i], self.l)
+            # otherwise, specular reflection happens against the walls
+            else:
+                (Xi, Vi) = bounds_reflect(self.X[i], Vi, self.dt, self.l)
+                while out_of_bounds(Xi, self.l):
+                    (Xi, Vi) = bounds_reflect(Xi, Vi, self.dt, self.l)
+
+                self.X[i] = Xi
+                self.A[i] = vec_to_ang(Vi)
 
 
     def update(self) -> None:

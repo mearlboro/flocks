@@ -98,6 +98,57 @@ def bounds_wrap(x: np.ndarray, L: int) -> np.ndarray:
     return x
 
 
+def bounds_reflect(
+        x: np.ndarray, v: float, dt: float, L: int
+    ) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Ensures particle at coordinates in x is within bounds (0, 0) and (L, L) by
+    adding specular reflections at the boundaries. The point (0, 0) is by
+    convention bottom-right.
+
+    When reaching the reflecting boundary, a particle will experience reflection
+    and its velocity vector is updated according to
+
+        V' = V - 2(v * Vn)Vn
+
+    where Vn is the normal vector to the boundary
+
+    For more details see Armbruster et al. (2017). "Swarming in bounded domains"
+    Physica D: Nonlinear Phenomena. 344: 58-67.
+    https://doi.org/10.1016/j.physd.2016.11.009
+
+    Params
+    ------
+    x
+        numpy array of shape (2,) for 2D coordinates of point x at current time
+    v
+        velocity vector of particle at current time
+    dt
+        time increment
+    L
+        size of the plane
+
+    Returns
+    ------
+    updated velocity vector V'
+    """
+
+    if x[0] < 0:
+        x[0] = -x[0]
+        v[0] = -v[0]
+    if x[0] > L:
+        x[0] = 2*L - x[0]
+        v[0] = -v[0]
+    if x[1] < 0:
+        x[1] = -x[1]
+        v[1] = -v[1]
+    if x[1] > L:
+        x[1] = 2*L - x[1]
+        v[1] = -v[1]
+
+    return (x, v)
+
+
 def neighbours(
         i: int,
         X: np.ndarray,
