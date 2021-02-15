@@ -14,10 +14,12 @@ from typing import Any, Dict, List, Tuple
 @click.option('-n', default = 10,   help='Number of particles')
 @click.option('-l', default = 5,    help='System size')
 @click.option('-e', default = 0.5,  help='Perturbation')
+@click.option('-v', default = 0.1,  help='Absolute velocity')
+@click.option('-r', default = 1.0,  help='Radius to follow')
 @click.option('--bounded', is_flag=True, default=False, help='Bounce against boundaries')
 @click.option('--saveimg', is_flag=True, default=False, help='Save images for each state')
 def run_vicsek(
-        t: int, n: int, l: float, e: float,
+        t: int, n: int, l: float, e: float, v: float, r: float,
         bounded: bool, saveimg: bool
     ) -> None:
     """
@@ -29,7 +31,7 @@ def run_vicsek(
     """
 
     # initialise model
-    sim = VicsekModel(n, l, e, bounded)
+    sim = VicsekModel(n, l, e, bounded, v, r)
 
     # initialise folder to save simulation results
     txtpath = sim_dir('out/txt', sim.string)
