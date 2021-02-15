@@ -69,8 +69,9 @@ def plot_state(
     plt.axis([0,l,0,l])
     plt.style.use("dark_background")
     frame = plt.gca()
-    frame.axes.get_xaxis().set_ticks([])
-    frame.axes.get_yaxis().set_ticks([])
+    frame.axes.get_xaxis().set_ticks(range(l+1))
+    frame.axes.get_yaxis().set_ticks(range(l+1))
+    plt.xlabel(t)
 
     plt.title(title)
 
@@ -116,6 +117,7 @@ def plot_trajectories(
 
     (T, N, _) = X.shape
 
+    plt.cla()
     for i in range(N):
         plt.plot(X[:, i, 0], X[:, i, 1], 'k', alpha=0.1)
     plt.plot(M[:, 0], M[:, 1], 'r')
