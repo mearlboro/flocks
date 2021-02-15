@@ -152,7 +152,7 @@ def bounds_reflect(
 def neighbours(
         i: int,
         X: np.ndarray,
-        r: int,
+        r: float,
         topology: str = "metric"
     ) -> List[int]:
     """
@@ -175,7 +175,7 @@ def neighbours(
 
     Returns
     ------
-    list of indexes of neighbouring particles
+    list of indexes of neighbouring particles, including current particle
     """
 
     N = len(X)
@@ -192,8 +192,10 @@ def neighbours(
     if topology == "metric":
         neighbours = [ j for j, Xj in enumerate(X) if np.linalg.norm(Xi - Xj, 2) < r ]
     else:
+        if int(r) != r:
+            raise ValueError("r must be an integer for 'topological' neighbours")
         X_index = [ (j, X[j]) for j in range(0, N) ]
-        X_index.sort(key = lambda Xj: np.linalg.norm(Xi - Xj, 2))
-        neighbours = [ X_index[i][0] for i in range(1, r + 1) ]
+        X_index.sort(key = lambda jXj: np.linalg.norm(Xi - jXj[1], 2))
+        neighbours = [ X_index[i][0] for i in range(0, r + 1) ]
 
     return neighbours
