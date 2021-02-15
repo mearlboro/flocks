@@ -1,10 +1,9 @@
 #!/usr/bin/python
 import numpy as np
-from math import pi
 
 from util.geometry import *
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 class VicsekModel:
     """
@@ -32,7 +31,7 @@ class VicsekModel:
 
     def __init__(self,
                  n: int, l: int, e: float, bounded: bool,
-                 v: float = 0.3, r: float = 1, dt: float = 1) -> None:
+                 v: float = 0.1, r: float = 1, dt: float = 1) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
         X for the N particles, and random angle array A for the angle of their
@@ -60,13 +59,13 @@ class VicsekModel:
         self.l  = l
         self.e  = e
         self.v  = v
-        self.r  = 1
+        self.r  = r
         self.dt = 1
 
         self.bounded = bounded
 
         self.X = np.random.uniform(0, l, size = (n, 2))
-        self.A = np.random.uniform(-pi, pi, size = (n, 1))
+        self.A = np.random.uniform(-np.pi, np.pi, size = (n, 1))
 
         # we save the model name and params as a string, to be used when saving
         # and we also typeset a figure title
@@ -74,70 +73,77 @@ class VicsekModel:
         self.string = f"vicsek_eta{e}_rho{rho}"
         if bounded:
             self.string += '_bounded'
-        self.title  = f"$\eta$ = {e}, $\\rho$ = {rho}"
+        self.title  = f"$\\eta$ = {e}, $\\rho$ = {rho}, $v$ = {v}, $r$ = {r}"
 
         # we count the time that has passed with every update
         self.t = 0
 
+        print("Initialised " + "bounded " if bounded else " " + "Vicsek model")
+        print("with parameters l: {l}, n: {n}, eta: {e}, v: {v}, r: {r}")
 
-    def updateA(self, i: int) -> None:
+
+    def new_A(self, i: int) -> float:
         """
-        Update angle of velocity for particle i by computing the average angle
-        of all neighbouring particles and adding a perturbation dE
+        Get updated angle of velocity for particle i by computing the average
+        angle of all neighbouring particles (including itself) and adding a
+        perturbation dE
 
         Params
         ------
         i
-            update angle Ai for particle with index i and location Xi at time t
+            index i for particle to update at time t
 
-        Side-effects
+        Returns
         ------
-        update A[i] in the current object
+        updated Ai
         """
         indexes = neighbours(i, self.X, self.r, 'metric')
         Aavg    = np.average(self.A[indexes])
 
         dE = np.random.uniform(-self.e/2, self.e/2)
 
-        self.A[i] = Aavg + dE
+        return Aavg + dE
 
 
-    def updateX(self, i: int) -> None:
+    def new_X(self, i: int) -> Tuple[np.ndarray, float]:
         """
-        Update coordinate for particle i adding new velocity to old coordinate
+        Get updated coordinate and angle for particle i adding new velocity to
+        old coordinate
 
         If boundary reflection is enabled, and the particle would have crossed
         the boundary at the next timestep, then the particle is updated per the
-        reflection rule instead of the generic rule.
+        reflection rule applied after the generic rule
 
         Params
         ------
         i
-            update coordinate Xi for particle with index i and angle Ai at time t
+            index i for particle to update at time t
 
-        Side-effects
+        Returns
         ------
-        update X[i]
+        updated Xi, and updated Ai (as Ai might change when boundary reflection
+        occurs)
         """
 
         # find new position and velocity according to normal rule
-        self.updateA(i)
+        Ai = self.new_A(i)
         Vi = ang_to_vec(self.A[i]) * self.v
-        self.X[i] = self.X[i] + Vi * self.dt
+        Xi = self.X[i] + Vi * self.dt
 
         # if it's out of bounds, correct based on simulation type
-        if out_of_bounds(self.X[i], self.l):
+        if out_of_bounds(Xi, self.l):
             # for a toroidal world, new positions are wrapped around the space
             if not self.bounded:
-                self.X[i] = bounds_wrap(self.X[i], self.l)
+                Xi = bounds_wrap(Xi, self.l)
             # otherwise, specular reflection happens against the walls
             else:
-                (Xi, Vi) = bounds_reflect(self.X[i], Vi, self.dt, self.l)
+                (Xi, Vi) = bounds_reflect(Xi, Vi, self.dt, self.l)
                 while out_of_bounds(Xi, self.l):
                     (Xi, Vi) = bounds_reflect(Xi, Vi, self.dt, self.l)
 
-                self.X[i] = Xi
-                self.A[i] = vec_to_ang(Vi)
+                Ai = vec_to_ang(Vi)
+
+        return (Xi, Ai)
 
 
     def update(self) -> None:
@@ -150,8 +156,10 @@ class VicsekModel:
         update arrays A and X in current object
         increment counter t as a new timestep has passed
         """
-        for i in range(self.n):
-            self.updateX(i)
+
+        X_A = [ self.new_X(i) for i in range(self.n) ]
+        self.X = np.array([  X_A[i][0]  for i in range(self.n) ])
+        self.A = np.array([ [X_A[i][1]] for i in range(self.n) ])
 
         self.t += self.dt
 
