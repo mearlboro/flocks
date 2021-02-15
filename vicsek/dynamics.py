@@ -78,8 +78,8 @@ class VicsekModel:
         # we count the time that has passed with every update
         self.t = 0
 
-        print("Initialised " + "bounded " if bounded else " " + "Vicsek model")
-        print("with parameters l: {l}, n: {n}, eta: {e}, v: {v}, r: {r}")
+        print(f"Initialised {'bounded' if bounded else ''} Vicsek model")
+        print(f"with parameters l: {l}, n: {n}, eta: {e}, v: {v}, r: {r}")
 
 
     def new_A(self, i: int) -> float:
@@ -98,7 +98,7 @@ class VicsekModel:
         updated Ai
         """
         indexes = neighbours(i, self.X, self.r, 'metric')
-        Aavg    = np.average(self.A[indexes])
+        Aavg    = average_angles(self.A[indexes])
 
         dE = np.random.uniform(-self.e/2, self.e/2)
 
@@ -127,7 +127,7 @@ class VicsekModel:
 
         # find new position and velocity according to normal rule
         Ai = self.new_A(i)
-        Vi = ang_to_vec(self.A[i]) * self.v
+        Vi = ang_to_vec(Ai) * self.v
         Xi = self.X[i] + Vi * self.dt
 
         # if it's out of bounds, correct based on simulation type

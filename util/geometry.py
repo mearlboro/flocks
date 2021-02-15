@@ -50,6 +50,27 @@ def ang_to_vec(theta: float) -> np.ndarray:
     return (y - x) / np.linalg.norm(y - x, 2)
 
 
+def average_angles(A: np.ndarray) -> float:
+    """
+    Estimates average angle of all p angles in A taking into account possible
+    negative angles should not cancel each-other out, following
+
+        a = arctan2(sum(sin(A[i])), sum(cos(A[i])))
+
+	cf. https://en.wikipedia.org/wiki/Mean_of_circular_quantities
+
+    Params
+    -----
+    A
+        numpy array of shape [q, 1] storing the values of q angles in radians
+
+    Returns
+    ------
+    average direction as a float
+    """
+    return np.arctan2(np.sum(np.sin(A)), np.sum(np.cos(A)))
+
+
 def out_of_bounds(x: np.ndarray, L: int) -> bool:
     """
     Checks if 2D coordinates are out of bounds (0, 0) and (L, L)

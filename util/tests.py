@@ -5,6 +5,7 @@
 
 from util.geometry import *
 from util.plot import plot_vector
+
 import numpy as np
 
 
@@ -50,3 +51,8 @@ test_vector_e(21, neighbours(0, X, 0.1,  'metric'),      [ 0 ])
 test_vector_e(22, neighbours(0, X, 0.5,  'metric'),      [ 0, 5 ])
 test_vector_e(23, neighbours(2, X, 0.5,  'metric'),      [ 2 ])
 test_vector_e(24, neighbours(0, X, 2,    'topological'), [ 0, 5, 4 ])
+
+# test average direction
+test_scalar_e(25, average_angles([ [1], [-1.1] ]), np.average([ 1, -1.1]))
+test_scalar_e(26, average_angles([ [2], [1] ]),    1.5)
+test_scalar_e(27, average_angles([ [2], [-2] ]),   np.pi)
