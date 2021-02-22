@@ -222,3 +222,54 @@ def neighbours(
 
     return neighbours
 
+
+def centre_of_mass(X: np.ndarray, l: int = 0) -> np.ndarray:
+    """
+    Get coordinates of the centre of mass of all N points in the flock.
+    If l is non-zero, normalize by the dimensions of the D-dimensional space.
+
+    Params
+    ------
+    X
+        numpy array of shape (N, D) with the coordinates of N points in
+        a D-dimensional space of size l
+    l
+        size of space
+
+    Returns
+    ------
+    numpy array of shape (D,) with the centre of mass coordinates
+    """
+    c = np.mean(X, axis = 0)
+    if l:
+        c /= l
+    return c
+
+
+def relative_positions(
+        X: np.ndarray, c: np.ndarray, l: float = 0
+    ) -> np.ndarray:
+    """
+    Compute N relative position vectors w.r.t. to a given point (can be centre
+    of mass of the flock, or the center of the space in which the flock moves).
+    If l is non-zero, normalize by the dimensions of the D-dimensional space.
+
+    Params
+    ------
+    X
+        numpy array of shape (N, D) with the coordinates of N points in
+        a D-dimensional space of size l
+    c
+        numpy array of shape (D,) for the coordinates of the point of reference
+    l
+        size of space
+
+    Returns
+    ------
+    numpy array of shape (N, D) with relative position vectors
+    """
+    R = np.array([ x - c for x in X ])
+    if l:
+        R /= l
+    return R
+
