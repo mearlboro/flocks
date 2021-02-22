@@ -28,6 +28,11 @@ def run_vicsek(
     Dump txt file of the state in each step (and image if the flag is set)
 
     https://arxiv.org/abs/cond-mat/0611743
+
+    Run from the root pyflocks/ folder
+
+        python -m vicsek.main [flags]
+
     """
 
     # initialise model

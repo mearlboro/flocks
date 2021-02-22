@@ -90,7 +90,7 @@ def plot_state(
 
 def plot_trajectories(
         X: np.ndarray, M: np.ndarray,
-        title: str, suptitle: str, path: str,
+        name: str, title: str, suptitle: str, path: str,
         save: bool = True, show: bool = False
     ) -> None:
     """
@@ -129,7 +129,7 @@ def plot_trajectories(
         plt.show()
 
     if save:
-        plt.savefig(f"{path}/trajectories_{title}.png")
+        plt.savefig(f"{path}/trajectories_{name}.png")
         plt.close()
 
     plt.cla()
