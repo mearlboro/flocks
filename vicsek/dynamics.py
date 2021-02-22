@@ -30,7 +30,7 @@ class VicsekModel:
     """
 
     def __init__(self,
-                 n: int, l: int, e: float, bounded: bool,
+                 n: int, l: int, e: float, bounded: bool, metric: bool,
                  v: float = 0.1, r: float = 1, dt: float = 1) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
@@ -48,6 +48,9 @@ class VicsekModel:
             distributed in [-E/2, E/2]
         bounded
             if True, steer around area bounds, with radius r, else wrap-around
+        metric
+            if True, steer based on neighbours in a radius r, else closest r
+            neighbours
         v  = 0.3
             absolute velocity of each particle
         r  = 1
@@ -60,9 +63,10 @@ class VicsekModel:
         self.e  = e
         self.v  = v
         self.r  = r
-        self.dt = 1
+        self.dt = dt
 
         self.bounded = bounded
+        self.metric  = metric
 
         self.X = np.random.uniform(0, l, size = (n, 2))
         self.A = np.random.uniform(-np.pi, np.pi, size = (n, 1))
@@ -70,16 +74,20 @@ class VicsekModel:
         # we save the model name and params as a string, to be used when saving
         # and we also typeset a figure title
         rho = round(float(n) / l ** 2, 2)
-        self.string = f"vicsek_eta{e}_rho{rho}"
+        self.string = f"vicsek_eta{e}_rho{rho}_r{r}"
         if bounded:
             self.string += '_bounded'
-        self.title  = f"$\\eta$ = {e}, $\\rho$ = {rho}, $v$ = {v}, $r$ = {r}"
+        if metric:
+            self.string += '_metric'
+        else:
+            self.string += '_topological'
+        self.title = f"$\\eta$ = {e}, $\\rho$ = {rho}, $v$ = {v}, $r$ = {r}"
 
         # we count the time that has passed with every update
         self.t = 0
 
         print(f"Initialised {'bounded' if bounded else ''} Vicsek model")
-        print(f"with parameters l: {l}, n: {n}, eta: {e}, v: {v}, r: {r}")
+        print(f"with parameters l: {l}, n: {n}, eta: {e}, v: {v}, r: {r if metric else str(int(r)) + ' nearest neighbours'}")
 
 
     def new_A(self, i: int) -> float:
@@ -97,7 +105,10 @@ class VicsekModel:
         ------
         updated Ai
         """
-        indexes = neighbours(i, self.X, self.r, 'metric')
+        if self.metric:
+            indexes = neighbours(i, self.X, self.r, 'metric')
+        else:
+            indexes = neighbours(i, self.X, self.r, 'topological')
         Aavg    = average_angles(self.A[indexes])
 
         dE = np.random.uniform(-self.e/2, self.e/2)

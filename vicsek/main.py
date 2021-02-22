@@ -16,22 +16,22 @@ from typing import Any, Dict, List, Tuple
 @click.option('-e', default = 0.5,  help='Perturbation')
 @click.option('-v', default = 0.1,  help='Absolute velocity')
 @click.option('-r', default = 1.0,  help='Radius to follow')
+@click.option('--metric' , is_flag=True, default=False,  help='Neighbours calculated based on distance, not topology')
 @click.option('--bounded', is_flag=True, default=False, help='Bounce against boundaries')
 @click.option('--saveimg', is_flag=True, default=False, help='Save images for each state')
 def run_vicsek(
         t: int, n: int, l: float, e: float, v: float, r: float,
-        bounded: bool, saveimg: bool
+        metric: bool, bounded: bool, saveimg: bool
     ) -> None:
     """
-    Create VicsekModel with params (n, l, e) and run it for T timesteps
+    Create VicsekModel with params (n, l, e, v, r) and run it for t timesteps
     Dump txt file of the state in each step (and image if the flag is set)
 
-    The default values of parameters are as per the original paper:
     https://arxiv.org/abs/cond-mat/0611743
     """
 
     # initialise model
-    sim = VicsekModel(n, l, e, bounded, v, r)
+    sim = VicsekModel(n, l, e, bounded, metric, v, r)
 
     # initialise folder to save simulation results
     txtpath = sim_dir('out/txt', sim.string)

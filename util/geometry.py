@@ -62,7 +62,7 @@ def average_angles(A: np.ndarray) -> float:
     Params
     -----
     A
-        numpy array of shape [q, 1] storing the values of q angles in radians
+        numpy array of shape (q, 1) storing the values of q angles in radians
 
     Returns
     ------
@@ -215,8 +215,10 @@ def neighbours(
     else:
         if int(r) != r:
             raise ValueError("r must be an integer for 'topological' neighbours")
+        r = int(r)
         X_index = [ (j, X[j]) for j in range(0, N) ]
         X_index.sort(key = lambda jXj: np.linalg.norm(Xi - jXj[1], 2))
         neighbours = [ X_index[i][0] for i in range(0, r + 1) ]
 
     return neighbours
+
