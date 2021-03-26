@@ -7,6 +7,20 @@ from util.util import *
 
 import typing
 
+def prepare_state_plot(l: float) -> None:
+    """
+    setup plot for an l-sized 2D world with black background
+    """
+    plt.axis([0,l,0,l])
+    plt.style.use("dark_background")
+    frame = plt.gca()
+    frame.set_aspect("equal")
+    frame.axes.get_xaxis().set_ticks(range(l+1))
+    frame.axes.get_yaxis().set_ticks(range(l+1))
+
+    return
+
+
 def plot_vector(X: np.ndarray, a: float, v: float) -> None:
     """
     Plot particle's vector of velocity in its corresponding position with arrow
@@ -30,7 +44,7 @@ def plot_vector(X: np.ndarray, a: float, v: float) -> None:
                headaxislength=0, headlength = 0, width=.005, color='y')
 
 
-def plot_state(
+def plot_state_particles(
         t: int, X: np.ndarray, A: np.ndarray,
         v: float, l: int,
         title: str, path: str,
@@ -61,18 +75,13 @@ def plot_state(
     show
         if True, display the plot
     """
-    n = len(X)
+    (n,_) = X.shape
 
     for i in range(n):
         plot_vector(X[i], A[i], v)
 
-    plt.axis([0,l,0,l])
-    plt.style.use("dark_background")
-    frame = plt.gca()
-    frame.axes.get_xaxis().set_ticks(range(l+1))
-    frame.axes.get_yaxis().set_ticks(range(l+1))
+    prepare_state_plot(l)
     plt.xlabel(t)
-
     plt.title(title)
 
     if show:
@@ -133,3 +142,5 @@ def plot_trajectories(
         plt.close()
 
     plt.cla()
+
+

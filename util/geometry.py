@@ -86,7 +86,7 @@ def out_of_bounds(x: np.ndarray, L: int) -> bool:
     ------
     True if out of bounds, False otherwise
     """
-    return (x[0] <= 0 or x[0] >= L or x[1] <= 0 or x[1] >= L)
+    return any(x < 0) or any(x > L)
 
 
 def bounds_wrap(x: np.ndarray, L: int) -> np.ndarray:
@@ -203,8 +203,8 @@ def neighbours(
 
     if i >= N:
         raise ValueError("Index i must be smaller than number of particles N!")
-    if r <= 0:
-        raise ValueError("Radius r must be strictly positive")
+    if r < 0:
+        raise ValueError("Radius r must be positive")
     if topology not in ("metric", "topological"):
         raise ValueError("Topology must be 'metric' or 'topological'")
 

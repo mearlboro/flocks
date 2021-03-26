@@ -5,6 +5,7 @@ from util.geometry import *
 
 from typing import Any, Dict, List, Tuple
 
+
 class VicsekModel:
     """
     Setup the parameters for the Vicsek model simulation. The model simulates
@@ -30,8 +31,9 @@ class VicsekModel:
     """
 
     def __init__(self,
-                 n: int, l: int, e: float, bounded: bool, metric: bool,
-                 v: float = 0.1, r: float = 1, dt: float = 1) -> None:
+                 n: int, l: int, e: float,
+                 bounded: bool, metric: bool,
+                 v: float = 0.3, r: float = 1, dt: float = 1) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
         X for the N particles, and random angle array A for the angle of their
@@ -54,7 +56,8 @@ class VicsekModel:
         v  = 0.3
             absolute velocity of each particle
         r  = 1
-            proximity radius, normally used as distance unit
+            proximity radius, normally used as distance unit, or number of
+            neighbours to follow
         dt = 1
             discrete time unit
         """
@@ -109,7 +112,7 @@ class VicsekModel:
             indexes = neighbours(i, self.X, self.r, 'metric')
         else:
             indexes = neighbours(i, self.X, self.r, 'topological')
-        Aavg    = average_angles(self.A[indexes])
+        Aavg = average_angles(self.A[indexes])
 
         dE = np.random.uniform(-self.e/2, self.e/2)
 
@@ -159,8 +162,7 @@ class VicsekModel:
 
     def update(self) -> None:
         """
-        Update every particle in the system to its new position and dump a file
-        with the system state
+        Update every particle in the system to its new position
 
         Side-effects
         ------
@@ -172,5 +174,5 @@ class VicsekModel:
         self.X = np.array([  X_A[i][0]  for i in range(self.n) ])
         self.A = np.array([ [X_A[i][1]] for i in range(self.n) ])
 
-        self.t += self.dt
+        self.t += 1
 
