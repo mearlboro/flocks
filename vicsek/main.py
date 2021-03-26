@@ -1,8 +1,8 @@
 #!/usr/bin/python
 import click
 
-from vicsek.dynamics import VicsekModel
-from util.plot import plot_state
+from vicsek.dynamics import KuramotoFlock
+from util.plot import plot_state_oscillators
 from util.util import sim_dir, dump_state
 
 from typing import Any, Dict, List, Tuple
@@ -11,20 +11,15 @@ from typing import Any, Dict, List, Tuple
 
 @click.command()
 @click.option('-t', default = 100,  help='Number of timesteps')
-@click.option('-n', default = 10,   help='Number of particles')
-@click.option('-l', default = 5,    help='System size')
-@click.option('-e', default = 0.5,  help='Perturbation')
-@click.option('-v', default = 0.1,  help='Absolute velocity')
-@click.option('-r', default = 1.0,  help='Radius to follow')
-@click.option('--metric' , is_flag=True, default=False,  help='Neighbours calculated based on distance, not topology')
-@click.option('--bounded', is_flag=True, default=False, help='Bounce against boundaries')
+@click.option('-e', default = 0.5,  help='Perturbation of angular velocity')
+@click.option('-k', default = 0.5,  help='Kuramoto coupling parameter')
+@click.option('-r', default = 2,    help='Radius or number of neighbours to follow')
+@click.option('-f', default = 1,    help='Intrinsic frequency')
 @click.option('--saveimg', is_flag=True, default=False, help='Save images for each state')
-def run_vicsek(
-        t: int, n: int, l: float, e: float, v: float, r: float,
-        metric: bool, bounded: bool, saveimg: bool
+def run_simulation(
+        t: int, e: float, k: float, r: float, f: float, saveimg: bool
     ) -> None:
     """
-    Create VicsekModel with params (n, l, e, v, r) and run it for t timesteps
     Dump txt file of the state in each step (and image if the flag is set)
 
     https://arxiv.org/abs/cond-mat/0611743
@@ -35,8 +30,8 @@ def run_vicsek(
 
     """
 
-    # initialise model
-    sim = VicsekModel(n, l, e, bounded, metric, v, r)
+    # initialise model with some fixed params
+    sim = KuramotoFlock(10, 2, e, k, bounded = True, metric = False, r = r, f = f)
 
     # initialise folder to save simulation results
     txtpath = sim_dir('out/txt', sim.string)
@@ -49,18 +44,21 @@ def run_vicsek(
         dump_state(sim.X[:, 0], 'x', txtpath)
         dump_state(sim.X[:, 1], 'y', txtpath)
         dump_state(sim.A[:, 0], 'a', txtpath)
+        dump_state(sim.P[:, 0], 'p', txtpath)
 
         # save current state to image file
         if saveimg:
             print(f'{sim.t}: saving system state to {imgpath}/')
-            plot_state(sim.t, sim.X, sim.A, sim.v, l, sim.title, imgpath)
+            plot_state_oscillators(
+                sim.t, sim.X, sim.F, sim.P, sim.dt, sim.l, sim.title, imgpath)
             # bug when saving the first image, so save it again
             if (sim.t == 0):
-                plot_state(sim.t, sim.X, sim.A, sim.v, l, sim.title, imgpath)
+                plot_state_oscillators(
+                    sim.t, sim.X, sim.F, sim.P, sim.dt, sim.l, sim.title, imgpath)
 
         sim.update()
 
 
 if __name__ == "__main__":
 
-    run_vicsek()
+    run_simulation()
