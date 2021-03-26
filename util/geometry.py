@@ -1,8 +1,26 @@
 #!/usr/bin/python
+from enum import Enum
 import numpy as np
 from math import atan2, pi, fmod, sin, cos, sqrt
 
 from typing import List, Tuple
+
+class EnumBounds(Enum):
+    """
+    Specify whether particles bounce around the boundaries, or move to the other
+    side in a toroidal world
+    """
+    PERIODIC   = 0
+    REFLECTIVE = 1
+
+class EnumNeighbours(Enum):
+    """
+    Specify whether a particle's neighbours are chosen to be in a radius r of
+    the current particle, or the closest r neigbours
+    """
+    METRIC      = 0
+    TOPOLOGICAL = 1
+
 
 def vec_to_ang(v: np.ndarray) -> float:
     """
@@ -120,7 +138,7 @@ def bounds_wrap(x: np.ndarray, L: int) -> np.ndarray:
 
 
 def bounds_reflect(
-        x: np.ndarray, v: float, dt: float, L: int
+        x: np.ndarray, v: np.ndarray, dt: float, L: int
     ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Ensures particle at coordinates in x is within bounds (0, 0) and (L, L) by
@@ -141,9 +159,9 @@ def bounds_reflect(
     Params
     ------
     x
-        numpy array of shape (2,) for 2D coordinates of point x at current time
+        numpy array of shape (2,), 2D coordinates of point x at current time
     v
-        velocity vector of particle at current time
+        numpy array of shape (2,), velocity vector of particle at current time
     dt
         time increment
     L
@@ -174,7 +192,7 @@ def neighbours(
         i: int,
         X: np.ndarray,
         r: float,
-        topology: str = "metric"
+        topology: EnumNeighbours = EnumNeighbours.METRIC
     ) -> List[int]:
     """
     Get the neighbours of a given point of index i in the list of points X.
@@ -205,16 +223,14 @@ def neighbours(
         raise ValueError("Index i must be smaller than number of particles N!")
     if r < 0:
         raise ValueError("Radius r must be positive")
-    if topology not in ("metric", "topological"):
-        raise ValueError("Topology must be 'metric' or 'topological'")
 
     Xi = X[i, :]
 
-    if topology == "metric":
+    if topology == EnumNeighbours.METRIC:
         neighbours = [ j for j, Xj in enumerate(X) if np.linalg.norm(Xi - Xj, 2) < r ]
     else:
         if int(r) != r:
-            raise ValueError("r must be an integer for 'topological' neighbours")
+            raise ValueError("r must be an integer for topological neighbours")
         r = int(r)
         X_index = [ (j, X[j]) for j in range(0, N) ]
         X_index.sort(key = lambda jXj: np.linalg.norm(Xi - jXj[1], 2))

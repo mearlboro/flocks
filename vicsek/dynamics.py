@@ -32,7 +32,7 @@ class VicsekModel:
 
     def __init__(self,
                  n: int, l: int, e: float,
-                 bounded: bool, metric: bool,
+                 bounds: EnumBounds, neighbours: EnumNeighbours,
                  v: float = 0.3, r: float = 1, dt: float = 1) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
@@ -48,16 +48,18 @@ class VicsekModel:
         e
             perturbation. Noise dE added in each evolution step is uniform
             distributed in [-E/2, E/2]
-        bounded
-            if True, steer around area bounds, with radius r, else wrap-around
-        metric
-            if True, steer based on neighbours in a radius r, else closest r
-            neighbours
+        bounds
+            enum value to specify whether particles wrap around boundaries
+            (PERIODIC) or bounce off them (REFLECTIVE)
+        neigbours
+            enum value to whecify whether neighbourd are chosen if they are in a
+            certain radius r from current particle (METRIC) or in the r closest
+            neighbours (TOPOLOGICAl)
         v  = 0.3
             absolute velocity of each particle
         r  = 1
-            proximity radius, normally used as distance unit, or number of
-            neighbours to follow
+            proximity radius, normally 1 if METRIC neighbours are used, or the
+            number of neighbours to follow
         dt = 1
             discrete time unit
         """
@@ -68,8 +70,10 @@ class VicsekModel:
         self.r  = r
         self.dt = dt
 
-        self.bounded = bounded
-        self.metric  = metric
+        self.bounds = bounds
+        bounds_str  = bounds.name.lower()
+        self.neighbours = neighbours
+        neighbours_str  = neighbours.name.lower()
 
         self.X = np.random.uniform(0, l, size = (n, 2))
         self.A = np.random.uniform(-np.pi, np.pi, size = (n, 1))
@@ -77,20 +81,14 @@ class VicsekModel:
         # we save the model name and params as a string, to be used when saving
         # and we also typeset a figure title
         rho = round(float(n) / l ** 2, 2)
-        self.string = f"vicsek_eta{e}_rho{rho}_r{r}"
-        if bounded:
-            self.string += '_bounded'
-        if metric:
-            self.string += '_metric'
-        else:
-            self.string += '_topological'
+        self.string = f"vicsek_eta{e}_rho{rho}_r{r}_{bounds_str}_{neighbours_str}"
         self.title = f"$\\eta$ = {e}, $\\rho$ = {rho}, $v$ = {v}, $r$ = {r}"
 
         # we count the time that has passed with every update
         self.t = 0
 
-        print(f"Initialised {'bounded' if bounded else ''} Vicsek model")
-        print(f"with parameters l: {l}, n: {n}, eta: {e}, v: {v}, r: {r if metric else str(int(r)) + ' nearest neighbours'}")
+        print(f"Initialised Vicsek model with {bounds_str} boundaries and {neighbours_str} neighbours")
+        print(f"with parameters l: {l}, n: {n}, eta: {e}, v: {v}, r: {r}")
 
 
     def new_A(self, i: int) -> float:
@@ -108,12 +106,8 @@ class VicsekModel:
         ------
         updated Ai
         """
-        if self.metric:
-            indexes = neighbours(i, self.X, self.r, 'metric')
-        else:
-            indexes = neighbours(i, self.X, self.r, 'topological')
+        indexes = neighbours(i, self.X, self.r, self.neighbours)
         Aavg = average_angles(self.A[indexes])
-
         dE = np.random.uniform(-self.e/2, self.e/2)
 
         return Aavg + dE
@@ -147,7 +141,7 @@ class VicsekModel:
         # if it's out of bounds, correct based on simulation type
         if out_of_bounds(Xi, self.l):
             # for a toroidal world, new positions are wrapped around the space
-            if not self.bounded:
+            if self.bounds == EnumBounds.PERIODIC:
                 Xi = bounds_wrap(Xi, self.l)
             # otherwise, specular reflection happens against the walls
             else:

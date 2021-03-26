@@ -1,9 +1,10 @@
 #!/usr/bin/python
 import click
 
-from vicsek.dynamics import VicsekModel
+from util.geometry import EnumBounds, EnumNeighbours
 from util.plot import plot_state_particles
 from util.util import sim_dir, dump_state
+from vicsek.dynamics import VicsekModel
 
 from typing import Any, Dict, List, Tuple
 
@@ -14,20 +15,23 @@ from typing import Any, Dict, List, Tuple
 @click.option('-n', default = 10,   help='Number of particles')
 @click.option('-l', default = 5,    help='System size')
 @click.option('-e', default = 0.5,  help='Perturbation of angular velocity')
-@click.option('-v', default = 0.1,  help='Absolute velocity')
+@click.option('-v', default = 0.3,  help='Absolute velocity')
 @click.option('-r', default = 1.0,  help='Radius or number of neighbours to follow')
-@click.option('--bounded', is_flag=True, default=False, help='Bounce against boundaries')
-@click.option('--metric' , is_flag=True, default=False,  help='Neighbours calculated based on distance, not topology')
-@click.option('--saveimg', is_flag=True, default=False, help='Save images for each state')
-def run_vicsek(
-        t: int, n: int, l: float, e: float, v: float, r: float,
-        bounded: bool, metric: bool, saveimg: bool
+@click.option('--bounds', required = True,
+              type = click.Choice(['PERIODIC', 'REFLECTIVE']),
+              help = 'How particles behave at the boundary')
+@click.option('--neighbours', required = True,
+              type = click.Choice(['METRIC', 'TOPOLOGICAL']),
+              help = 'Use neighbours in a radius r or nearest r neighbours')
+@click.option('--saveimg', is_flag = True, default = False,
+              help = 'Save images for each state')
+def run_simulation(
+        t: int, n: int, l: int, e: float, v: float, r: float,
+        bounds: str, neighbours: str, saveimg: bool
     ) -> None:
     """
-    Create VicsekModel with params (n, l, e, v, r) and run it for t timesteps
+    Create VicsekModel with given params and run it for t timesteps
     Dump txt file of the state in each step (and image if the flag is set)
-
-    https://arxiv.org/abs/cond-mat/0611743
 
     Run from the root pyflocks/ folder
 
@@ -36,7 +40,7 @@ def run_vicsek(
     """
 
     # initialise model
-    sim = VicsekModel(n, l, e, bounded, metric, v, r)
+    sim = VicsekModel(n, l, e, EnumBounds[bounds], EnumNeighbours[neighbours], v, r)
 
     # initialise folder to save simulation results
     txtpath = sim_dir('out/txt', sim.string)
@@ -63,4 +67,4 @@ def run_vicsek(
 
 if __name__ == "__main__":
 
-    run_vicsek()
+    run_simulation()
