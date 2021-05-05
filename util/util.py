@@ -187,10 +187,11 @@ def find_models(path: str, name: str) -> Dict[str, Dict[str, float]]:
     dirs_dict = { d: d.split('_') for d in dirs }
     # name and bounded are redundant, already included in the dir basename
     dirs_dict = { d: s[1:] for d,s in dirs_dict.items() }
+    dirs_dict = { d: s[:-1] if 'topolog' in s[-1] else s for d,s in dirs_dict.items() }
     dirs_dict = { d: s[:-1] if 'bounded' in s[-1] else s for d,s in dirs_dict.items() }
     # numerical params have the form {string}{number}, split with regex
     model_dict = { d: { re.findall('[a-z]+', par)[0]: float(re.findall('[0-9.]+', par)[0])
-                   for par in s if 'boundd' not in par }
+                   for par in s if 'bounded' not in par or 'topolog' not in par}
                    for d,s in dirs_dict.items() }
     # construct plot-friendly model title
     for m in model_dict.keys():
@@ -277,6 +278,7 @@ def aggregate_model_stats(
 
             m |= process_space(m['X'], l, 'centre_of_mass')
             m |= process_angles(m['A'])
+            m |= process_phase(m['P'])
 
             models[exp] = m
 

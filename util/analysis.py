@@ -103,6 +103,36 @@ def process_angles(At: np.ndarray) -> Dict[str, np.ndarray]:
     return m
 
 
+def process_phase(Pt: np.ndarray) -> Dict[str, np.ndarray]:
+    """
+    Given the phase of an oscillator in the system, return stats
+    (average and deviation)
+
+    Params
+    ------
+    At
+        angle of velocities for all the system variables accross all time points
+        as numpy array of shape (T, N)
+
+    Returns
+    ------
+    dict of numpy arrays
+        'avg_angle':   (T,) average angle
+        'var_angle':   (T,) variance of angle
+    """
+    (T, N) = Pt.shape
+
+    m = dict()
+
+    m['avg_angle'] = np.array([ vec_to_ang(v) for v in avg_vel ])
+    m['var_angle'] = np.array([ vec_to_ang(v) for v in var_vel ])
+
+    m['avg_abs_vel'] = np.linalg.norm(avg_vel, 2, axis = 1)
+    m['var_abs_vel'] = np.linalg.norm(var_vel, 2, axis = 1)
+
+    return m
+
+
 
 def autocorrelation(V: np.ndarray, window: int) -> np.ndarray:
     """
