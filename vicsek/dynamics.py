@@ -5,6 +5,7 @@ from util.geometry import *
 
 from typing import Any, Dict, List, Tuple
 
+
 class KuramotoFlock:
     """
     This simulation combines a Vicsek 2D particle model with a Kuramoto model of
@@ -49,7 +50,7 @@ class KuramotoFlock:
 
     def __init__(self,
                  n: int, l: int, e: float, k: float,
-                 bounded: bool, metric: bool,
+                 bounds: EnumBounds, neighbours: EnumNeighbours,
                  v: float = 0.3, r: float = 1, f: float = 1,
                  dt: float = 0.04
         ) -> None:
@@ -70,11 +71,13 @@ class KuramotoFlock:
             distributed in [-E/2, E/2]
         k
             for the Kuramoto model, the coupling parameter between neighbours
-        bounded
-            if True, steer around area bounds, with radius r, else wrap-around
-        metric
-            if True, steer based on neighbours in a radius r, else closest r
-            neighbours
+        bounds
+            enum value to specify whether particles wrap around boundaries
+            (PERIODIC) or bounce off them (REFLECTIVE)
+        neigbours
+            enum value to whecify whether neighbourd are chosen if they are in a
+            certain radius r from current particle (METRIC) or in the r closest
+            neighbours (TOPOLOGICAl)
         v  = 0.3
             absolute velocity of each particle
         r  = 1
@@ -93,8 +96,10 @@ class KuramotoFlock:
         self.r  = r
         self.dt = dt
 
-        self.bounded = bounded
-        self.metric  = metric
+        self.bounds = bounds
+        bounds_str  = bounds.name.lower()
+        self.neighbours = neighbours
+        neighbours_str  = neighbours.name.lower()
 
         # Vicsek particle properties
         self.X = np.random.uniform(0, l, size = (n, 2))
@@ -106,23 +111,15 @@ class KuramotoFlock:
         # we save the model name and params as a string, to be used when saving
         # and we also typeset a figure title
         rho = round(float(n) / l ** 2, 2)
-        self.string = f"kuraflock_eta{e}_k{k}_rho{rho}_r{r}"
-        if bounded:
-            self.string += '_bounded'
-        self.title = f"$\\eta$ = {e}, k = {k}, $\\rho$ = {rho}, $v$ = {v}, "
-        if metric:
-            self.title  += f"$r$ = {r}"
-            self.string += '_metric'
-        else:
-            self.title  += f"{r} neigbours"
-            self.string += '_topological'
-
-        print(f"Initialised {'bounded' if bounded else ''} Kuramoto flock model")
-        print(f"with Vicsek parameters l: {l}, n: {n}, eta: {e}, v: {v}, r: {r if metric else str(int(r)) + ' nearest neighbours'}")
-        print(f"and intrinsic frequency {f} for all oscillators in the flock and Kuramoto coupling parameter {k} for neighbours.")
+        self.string = f"kuraflock_eta{e}_k{k}_rho{rho}_r{r}{bounds_str}_{neighbours_str}"
+        self.title = f"$\\eta$ = {e}, $\\rho$ = {rho}, $v$ = {v}, $r$ = {r}"
 
         # we count the time that has passed in int increments
         self.t = 0
+
+        print(f"Initialised Vicsek model with {bounds_str} boundaries and {neighbours_str} neighbours")
+        print(f"with parameters l: {l}, n: {n}, eta: {e}, v: {v}, r: {r}")
+        print(f"and intrinsic frequency {f} for all oscillators in the flock and Kuramoto coupling parameter {k} for neighbours.")
 
 
 
@@ -141,12 +138,8 @@ class KuramotoFlock:
         ------
         updated Ai
         """
-        if self.metric:
-            indexes = neighbours(i, self.X, self.r, 'metric')
-        else:
-            indexes = neighbours(i, self.X, self.r, 'topological')
+        indexes = neighbours(i, self.X, self.r, self.neighbours)
         Aavg = average_angles(self.A[indexes])
-
         dE = np.random.uniform(-self.e/2, self.e/2)
 
         return Aavg + dE
@@ -180,7 +173,7 @@ class KuramotoFlock:
         # if it's out of bounds, correct based on simulation type
         if out_of_bounds(Xi, self.l):
             # for a toroidal world, new positions are wrapped around the space
-            if not self.bounded:
+            if self.bounds == EnumBounds.PERIODIC:
                 Xi = bounds_wrap(Xi, self.l)
             # otherwise, specular reflection happens against the walls
             else:
@@ -225,6 +218,7 @@ class KuramotoFlock:
         return Pi
 
 
+
     def update(self) -> None:
         """
         Update every particle in the system to its new position
@@ -238,8 +232,7 @@ class KuramotoFlock:
         X_A = [ self.new_X(i) for i in range(self.n) ]
         self.X = np.array([  X_A[i][0]  for i in range(self.n) ])
         self.A = np.array([ [X_A[i][1]] for i in range(self.n) ])
-
         self.P = np.array([ self.new_P(i) for i in range(self.n) ])
 
-        self.t += 1
+        self.t += self.dt
 

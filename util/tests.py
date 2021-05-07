@@ -4,20 +4,19 @@
 #   python -m util.tests
 
 from util.geometry import *
-from util.plot import plot_vector
 
 import numpy as np
 
 
-def test_scalar_e(i, actual, expected) -> bool:
+def test_scalar_e(i, actual, expected) -> None:
     if abs(actual - expected) > 1e-5:
         print(f"Test {i}: failed! Expected {expected}, got {actual}")
 
-def test_vector_e(i, actual, expected) -> bool:
+def test_vector_e(i, actual, expected) -> None:
     if any([abs(a - e) > 1e-5 for (a, e) in zip(actual, expected)]):
         print(f"Test {i}: failed! Expected {expected}, got {actual}")
 
-def test_np_array(i, actual, expected) -> bool:
+def test_np_array(i, actual, expected) -> None:
     if not np.array_equal(actual, expected):
         print(f"Test {i}: failed! Expected {expected}, got {actual}")
 
@@ -44,13 +43,13 @@ test_scalar_e(17, vec_to_ang(ang_to_vec(-pi/3)), -pi/3)
 
 # test neighbours
 X = np.array([ [4, 4], [2, 2], [2, 2.8], [2.5, 2.5], [3, 3], [4, 4.1] ])
-test_vector_e(18, neighbours(1, X, 1,    'metric'),      [ 1, 2, 3 ])
-test_vector_e(19, neighbours(1, X, 2,    'metric'),      [ 1, 2, 3, 4 ])
-test_vector_e(20, neighbours(0, X, 0.11, 'metric'),      [ 0, 5 ])
-test_vector_e(21, neighbours(0, X, 0.1,  'metric'),      [ 0 ])
-test_vector_e(22, neighbours(0, X, 0.5,  'metric'),      [ 0, 5 ])
-test_vector_e(23, neighbours(2, X, 0.5,  'metric'),      [ 2 ])
-test_vector_e(24, neighbours(0, X, 2,    'topological'), [ 0, 5, 4 ])
+test_vector_e(18, neighbours(1, X, 1,    Neighbours.METRIC),      [ 1, 2, 3 ])
+test_vector_e(19, neighbours(1, X, 2,    Neighbours.METRIC),      [ 1, 2, 3, 4 ])
+test_vector_e(20, neighbours(0, X, 0.11, Neighbours.METRIC),      [ 0, 5 ])
+test_vector_e(21, neighbours(0, X, 0.1,  Neighbours.METRIC),      [ 0 ])
+test_vector_e(22, neighbours(0, X, 0.5,  Neighbours.METRIC),      [ 0, 5 ])
+test_vector_e(23, neighbours(2, X, 0.5,  Neighbours.METRIC),      [ 2 ])
+test_vector_e(24, neighbours(0, X, 2,    Neighbours.TOPOLOGICAL), [ 0, 5, 4 ])
 
 # test average direction
 test_scalar_e(25, average_angles([ [1], [-1.1] ]), np.average([ 1, -1.1]))

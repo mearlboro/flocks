@@ -7,7 +7,7 @@ from util.util import *
 
 import typing
 
-def prepare_state_plot(l: float) -> None:
+def prepare_state_plot(l: int) -> None:
     """
     setup plot for an l-sized 2D world with black background
     """
@@ -216,5 +216,3 @@ def plot_trajectories(
         plt.close()
 
     plt.cla()
-
-

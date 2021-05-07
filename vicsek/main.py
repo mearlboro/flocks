@@ -2,6 +2,7 @@
 import click
 
 from vicsek.dynamics import KuramotoFlock
+from util.geometry import EnumBounds, EnumNeighbours
 from util.plot import plot_state_oscillators
 from util.util import sim_dir, dump_state
 
@@ -11,18 +12,26 @@ from typing import Any, Dict, List, Tuple
 
 @click.command()
 @click.option('-t', default = 100,  help='Number of timesteps')
+@click.option('-n', default = 10,   help='Number of particles')
+@click.option('-l', default = 5,    help='System size')
 @click.option('-e', default = 0.5,  help='Perturbation of angular velocity')
 @click.option('-k', default = 0.5,  help='Kuramoto coupling parameter')
 @click.option('-r', default = 2,    help='Radius or number of neighbours to follow')
 @click.option('-f', default = 1,    help='Intrinsic frequency')
-@click.option('--saveimg', is_flag=True, default=False, help='Save images for each state')
+@click.option('--bounds', required = True,
+              type = click.Choice(['PERIODIC', 'REFLECTIVE']),
+              help = 'How particles behave at the boundary')
+@click.option('--neighbours', required = True,
+              type = click.Choice(['METRIC', 'TOPOLOGICAL']),
+              help = 'Use neighbours in a radius r or nearest r neighbours')
+@click.option('--saveimg', is_flag = True, default = False,
+              help = 'Save images for each state')
 def run_simulation(
-        t: int, e: float, k: float, r: float, f: float, saveimg: bool
+        t: int, n: int, l: int, e: float, v: float, r: float,
+        bounds: str, neighbours: str, saveimg: bool
     ) -> None:
     """
     Dump txt file of the state in each step (and image if the flag is set)
-
-    https://arxiv.org/abs/cond-mat/0611743
 
     Run from the root pyflocks/ folder
 
@@ -31,7 +40,7 @@ def run_simulation(
     """
 
     # initialise model with some fixed params
-    sim = KuramotoFlock(10, 2, e, k, bounded = True, metric = False, r = r, f = f)
+    sim = KuramotoFlock(n, l, e, k, EnumBounds[bounds], EnumNeighbours[neighbours], r = r, f = f)
 
     # initialise folder to save simulation results
     txtpath = sim_dir('out/txt', sim.string)
