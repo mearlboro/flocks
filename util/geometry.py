@@ -54,7 +54,7 @@ def ang_to_vec(theta: float) -> np.ndarray:
 
     Returns
     ------
-    numpy array of shape (1, 2) with the 2D coordinates of the vector's tip
+    numpy array of shape (2,) with the 2D coordinates of the vector's tip
     """
 
     if theta == -pi:
@@ -89,6 +89,25 @@ def average_angles(A: np.ndarray) -> float:
     return np.arctan2(np.sum(np.sin(A)), np.sum(np.cos(A)))
 
 
+def sum_vec(thetas: List[float], v: float) -> np.ndarray:
+    """
+    Sum given vectors with orientation stored in thetas and velocity v
+
+    Params
+    ------
+    thetas
+        list of floats representing angles in interval [-pi, pi]
+
+    Returns
+    ------
+    numpy array of shape (2,) with the 2D coordinates of the sum vector's tip
+    """
+    vecs = np.array([ ang_to_vec(theta) * v for theta in thetas ])
+    sumv = np.array([ sum(vecs[:, 0]), sum(vecs[:, 1]) ])
+
+    return sumv
+
+
 def out_of_bounds(x: np.ndarray, L: int) -> bool:
     """
     Checks if 2D coordinates are out of bounds (0, 0) and (L, L)
@@ -114,13 +133,13 @@ def bounds_wrap(x: np.ndarray, L: int) -> np.ndarray:
     Params
     ------
     x
-        numpy array of shape (1, 2) for coordinates
+        numpy array of shape (2,) for coordinates
     L
         size of the plane
 
     Returns
     ------
-    numpy array of shape (1, 2)
+    numpy array of shape (2,)
     """
     if x[0] < 0:
       x[0] = L + x[0]

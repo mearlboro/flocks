@@ -7,6 +7,7 @@ from util.util import *
 
 import typing
 
+
 def prepare_state_plot(l: int) -> None:
     """
     setup plot for an l-sized 2D world with black background
@@ -17,7 +18,20 @@ def prepare_state_plot(l: int) -> None:
     frame.set_aspect("equal")
     frame.axes.get_xaxis().set_ticks(range(l+1))
     frame.axes.get_yaxis().set_ticks(range(l+1))
+    return
 
+
+def plot_particle(X: np.ndarray) -> None:
+    """
+    Plot particle as dot
+
+    Params
+    ------
+    X
+        numpy array of shape (2,) containing 2D coordinates
+    """
+    (x,  y) = X
+    plt.scatter(x, y, color='w', marker='.')
     return
 
 
@@ -41,14 +55,58 @@ def plot_vector(X: np.ndarray, a: float, v: float) -> None:
     # to make them in arrow shape, make headlength and headaxislenght non-zero
     plt.quiver([x], [y], [vx], [vy],
                units='width', angles='xy', scale_units='xy', scale = 1,
-               headaxislength=0, headlength = 0, width=.005, color='y')
+               headaxislength=2, headlength=2, width=.005, color='w')
+    return
 
 
-def plot_state_particles(
-        t: int, X: np.ndarray, A: np.ndarray,
-        v: float, l: int,
+def plot_trajectory(
+        t: int, Xt: np.ndarray, l: int,
+        col: str = 'grey', dt: int = 20
+    ) -> None:
+    """
+    Plot a particle's trajectory for the last dt timepoints
+
+    Params
+    ------
+    t
+        time unit of the simulation
+    Xt
+        numpy array of shape (t, 2) with all the points previous positions
+    l
+        size of space
+    col
+        colour of trajectory (matplotlib colour name)
+    dt
+        plot last dt timepoints
+    """
+    if t > dt:
+        Xt = Xt[t-dt-1:t+1]
+    else:
+        Xt = Xt[0:t+1]
+
+    if t > 0:
+        # to avoid cross lines for periodic boundaries use a masked array
+        abs_Xt   = np.abs(np.diff(Xt[:, 0]))
+        mask     = np.hstack([ abs_Xt >= l-1, [False]])
+        mask_Xt0 = np.ma.MaskedArray(Xt[:, 0], mask)
+
+        abs_Xt   = np.abs(np.diff(Xt[:, 1]))
+        mask     = np.hstack([ abs_Xt >= l-1, [False]])
+        mask_Xt1 = np.ma.MaskedArray(Xt[:, 1], mask)
+
+        if col == 'grey':
+            alpha = 0.3
+        else:
+            alpha = 1
+        plt.plot(mask_Xt0, mask_Xt1, col, alpha=alpha)
+
+    return
+
+
+def plot_state_vectors(
+        t: int, X: np.ndarray, A: np.ndarray, v: float, l: int,
         title: str, path: str,
-        save: bool = True, show: bool = False
+        sumvec: bool = True, save: bool = True, show: bool = False
 	) -> None:
     """
     Plot the state of a 2D multi-agent/particle system
@@ -70,6 +128,8 @@ def plot_state_particles(
     path
         path to save file as, should be 'out/img/' folowed by a subdirectory
         named after the model name and parameters
+    order
+        if True, draw also the normalised sum of all particle velocities
     save
         if True, save images to above path with filename t.jpg
     show
@@ -77,10 +137,14 @@ def plot_state_particles(
     """
     (n,_) = X.shape
 
+    prepare_state_plot(l)
     for i in range(n):
         plot_vector(X[i], A[i], v)
 
-    prepare_state_plot(l)
+    if sumvec:
+        S = sum_vec(A, v) / n / v
+        plt.plot([l/2, S[0] + l/2], [l/2, S[1] + l/2], 'yellow', linewidth=3)
+
     plt.xlabel(t)
     plt.title(title)
 
@@ -93,7 +157,64 @@ def plot_state_particles(
 
     # clear for next plot
     plt.cla()
+    return
 
+
+def plot_state_particles_trajectories(
+        t: int, Xt: np.ndarray, l: int,
+        title: str, path: str,
+        cmass: bool = False, sumvec: bool = False,
+        save: bool = True, show: bool = False
+	) -> None:
+    """
+    Plot the state of a 2D multi-agent/particle system with a dot marker and
+    trajectories
+
+    Params
+    ------
+    t
+        time unit of the simulation, to be used as filename for generated image
+    Xt
+        numpy array of shape (t,N,2), containing spatial coordinates for N
+        particles at all timepoints so far
+    l
+        height and width of the system
+    title
+        title of plot
+    path
+        path to save file as, should be 'out/img/' folowed by a subdirectory
+        named after the model name and parameters
+    cmass
+        if True, print also the trajectory of the centre of mass
+    save
+        if True, save images to above path with filename t.jpg
+    show
+        if True, display the plot
+    """
+    (_,n,_) = Xt.shape
+
+    prepare_state_plot(l)
+    for i in range(n):
+        plot_trajectory(t, Xt[:, i], l)
+    for i in range(n):
+        plot_particle(Xt[t, i])
+
+    if cmass:
+        M = np.mean(Xt, axis = 1)
+        plot_trajectory(t, M, l, 'yellow')
+
+    plt.xlabel(t)
+    plt.title(title)
+
+    if show:
+        plt.show()
+
+    if save:
+        plt.savefig(f"{path}/{t}.jpg")
+        plt.close()
+
+    # clear for next plot
+    plt.cla()
     return
 
 
@@ -128,8 +249,8 @@ def plot_trajectories(
 
     plt.cla()
     for i in range(N):
-        plt.plot(X[:, i, 0], X[:, i, 1], 'k', alpha=0.1)
-    plt.plot(M[:, 0], M[:, 1], 'r')
+        plot_trajectory(T, X[:, i], l, 'grey', T)
+    plt_trajectory(T, M, l, 'r', T)
 
     plt.title(title)
     plt.suptitle(suptitle)
@@ -142,5 +263,5 @@ def plot_trajectories(
         plt.close()
 
     plt.cla()
-
+    return
 
