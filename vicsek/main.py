@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Tuple
 @click.option('-l', default = 5,    help='System size')
 @click.option('-e', default = 0.5,  help='Perturbation of angular velocity')
 @click.option('-k', default = 0.5,  help='Kuramoto coupling parameter')
-@click.option('-r', default = 2,    help='Radius or number of neighbours to follow')
+@click.option('-r', default = 1,    help='Radius or number of neighbours to follow')
 @click.option('-f', default = 1,    help='Intrinsic frequency')
 @click.option('--bounds', required = True,
               type = click.Choice(['PERIODIC', 'REFLECTIVE']),
@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Tuple
 @click.option('--saveimg', is_flag = True, default = False,
               help = 'Save images for each state')
 def run_simulation(
-        t: int, n: int, l: int, e: float, v: float, r: float,
+        t: int, n: int, l: int, e: float, k: float, r: float, f: float,
         bounds: str, neighbours: str, saveimg: bool
     ) -> None:
     """
@@ -59,11 +59,11 @@ def run_simulation(
         if saveimg:
             print(f'{sim.t}: saving system state to {imgpath}/')
             plot_state_oscillators(
-                sim.t, sim.X, sim.F, sim.P, sim.dt, sim.l, sim.title, imgpath)
+                int(sim.t / sim.dt), sim.X, sim.F, sim.P, sim.dt, sim.l, sim.title, imgpath)
             # bug when saving the first image, so save it again
             if (sim.t == 0):
                 plot_state_oscillators(
-                    sim.t, sim.X, sim.F, sim.P, sim.dt, sim.l, sim.title, imgpath)
+                    int(sim.t / sim.dt), sim.X, sim.F, sim.P, sim.dt, sim.l, sim.title, imgpath)
 
         sim.update()
 

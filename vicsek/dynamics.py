@@ -24,9 +24,9 @@ class KuramotoFlock:
 
         Ai(t + dt)  = <A(t)> + dE
 
-    For a description of default parameter choices and initial conditions,
-    Vicsek et al. (1995). "Novel Type of Phase Transition in a System of Self
-    Driven Particles". Physical Review Letters. 75 (6): 1226–1229.
+    For a description of the self-propelled particle model see Vicsek et al. (1995).
+    "Novel Type of Phase Transition in a System of Self Driven Particles".
+    Physical Review Letters. 75 (6): 1226–1229.
     https://arxiv.org/abs/cond-mat/0611743
 
     Moreover, each particle acts as an oscillator with frequency Fi, phase Pi.
@@ -51,7 +51,7 @@ class KuramotoFlock:
     def __init__(self,
                  n: int, l: int, e: float, k: float,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
-                 v: float = 0.3, r: float = 1, f: float = 1,
+                 v: float = 1, r: float = 1, f: float = 1,
                  dt: float = 0.04
         ) -> None:
         """
@@ -78,7 +78,7 @@ class KuramotoFlock:
             enum value to whecify whether neighbourd are chosen if they are in a
             certain radius r from current particle (METRIC) or in the r closest
             neighbours (TOPOLOGICAl)
-        v  = 0.3
+        v  = 1
             absolute velocity of each particle
         r  = 1
             proximity radius, normally used as distance unit, or number of
@@ -200,7 +200,7 @@ class KuramotoFlock:
         ------
         updated Pi
         """
-        if self.metric:
+        if self.neighbours == EnumNeighbours.METRIC:
             indexes = neighbours(i, self.X, self.r, 'metric')
         else:
             indexes = neighbours(i, self.X, self.r, 'topological')
