@@ -3,14 +3,10 @@ import math
 import numpy as np
 import os
 
-from util.analysis import process_angles, process_space
-
 from typing import Any, Dict, List
 
 
-def save_var(
-        X: np.ndarray, fn: str, path: str
-    ) -> None:
+def save_var(X: np.ndarray, fn: str, path: str) -> None:
     """
     Append the variable `X` passed as param to the file `fn` in `path`.
     """
@@ -31,8 +27,8 @@ def load_var(filename: str) -> np.ndarray:
     Each file contains a variable for an N-dimensional system, with the index i
     on columns and the time t on rows. Values are floats separated by tabs.
 
-	For example x can be the x-coordinate in 2D space of each particle or the
-	angular velocity of each particle.
+    For example x can be the x-coordinate in 2D space of each particle or the
+    angular velocity of each particle.
 
             x1  x2   ... xN
         t=1 .4  .7 . ... .3

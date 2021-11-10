@@ -19,7 +19,7 @@ class FlockModel:
     velocity vectors. At each discrete time step, the position (and velocity)
     may be updated according to model rules.
     """
-    def __init__(self, name: str, n: int, l: int,
+    def __init__(self, name: str, n: int, l: float,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
                  dt: float = 1,
                  params: Dict[str, float] = {}) -> None:
@@ -67,7 +67,7 @@ class FlockModel:
         # we save the model name and params as a string, to be used when saving
         # and we also typeset a figure title and subtitle
         self.string   = f"{name}_{bounds_str}_{neighbours_str}_{'_'.join(params_strs)}"
-        self.title    = f"{name} model, {bounds_str} boundaries, {neighbours_str} neighbourhood"
+        self.title    = f"{name} model, {bounds_str} bounds, {neighbours_str} neighbours"
         self.subtitle = ', '.join([ f'${p}$ = {v}'
                                     if len(p) == 1 else f'$\\{p}$ = {v}'
                                     for p,v in params.items() ])

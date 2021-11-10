@@ -17,19 +17,23 @@ from typing import Any, Dict, List, Tuple
 @click.option('-e', default = 0.4,  help='Perturbation of angular velocity')
 @click.option('-v', default = 0.1,  help='Absolute velocity')
 @click.option('-r', default = 1.0,  help='Radius or number of neighbours to follow')
-@click.option('--trajectories', is_flag = True, default = False,
-              help = "If true draw particle with trajectories, otherwise velocity vectors")
 @click.option('--bounds', required = True,
               type = click.Choice(['PERIODIC', 'REFLECTIVE']),
               help = 'How particles behave at the boundary')
 @click.option('--neighbours', required = True,
               type = click.Choice(['METRIC', 'TOPOLOGICAL']),
               help = 'Use neighbours in a radius r or nearest r neighbours')
+@click.option('--trajectories', is_flag = True, default = False,
+              help = "If true draw particle with trajectories, otherwise velocity vectors")
+@click.option('--sumvec', is_flag = True, default = False,
+              help = "If true draw particle velocity vectors and also their sum vector")
 @click.option('--saveimg', is_flag = True, default = False,
               help = 'Save images for each state')
 def vicsek(
-        t: int, n: int, l: int, e: float, v: float, r: float,
-        trajectories: bool, bounds: str, neighbours: str, saveimg: bool
+        t: int, n: int, l: float, e: float, v: float, r: float,
+        bounds: str, neighbours: str,
+        trajectories: bool, sumvec: bool,
+        saveimg: bool
     ) -> None:
     """
     Create VicsekModel with given params and run it for t timesteps
@@ -37,7 +41,7 @@ def vicsek(
 
     Run from the root pyflocks/ folder
 
-        python -m vicsek.main [flags]
+        python -m flock.main vicsek [flags]
 
     """
 
@@ -62,19 +66,19 @@ def vicsek(
                 # remember all positions so far
                 Xt[sim.t] = sim.X
                 plot_state_particles_trajectories(
-                    sim.t, Xt, l, sim.title, imgpath, True)
+                    sim.t, Xt, l, sim.title, sim.subtitle, imgpath, True)
                 # bug when saving the first image, so save it again
                 if (sim.t == 0):
                     plot_state_particles_trajectories(
-                        sim.t, Xt, l, sim.title, imgpath, True)
+                        sim.t, Xt, l, sim.title, sim.subtitle, imgpath, True)
             else:
                 print(f'{sim.t}: saving system state to {imgpath}/')
                 plot_state_vectors(
-                    sim.t, sim.X, sim.A, v, l, sim.title, imgpath, True)
+                    sim.t, sim.X, sim.A, v, l, sim.title, sim.subtitle, imgpath, sumvec)
                 # bug when saving the first image, so save it again
                 if (sim.t == 0):
                     plot_state_vectors(
-                        sim.t, sim.X, sim.A, v, l, sim.title, imgpath, True)
+                        sim.t, sim.X, sim.A, v, l, sim.title, sim.subtitle, imgpath, sumvec)
 
         sim.update()
 

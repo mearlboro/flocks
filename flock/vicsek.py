@@ -35,7 +35,7 @@ class VicsekModel(FlockModel):
     """
 
     def __init__(self,
-                 n: int, l: int,
+                 n: int, l: float,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
                  e: float, v: float = 0.3, r: float = 1, dt: float = 1) -> None:
         """

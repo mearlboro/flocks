@@ -3,12 +3,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from util.geometry import *
-from util.util import *
 
 import typing
 
 
-def prepare_state_plot(l: int) -> None:
+def prepare_state_plot(l: float) -> None:
     """
     setup plot for an l-sized 2D world with black background
     """
@@ -60,7 +59,7 @@ def plot_vector(X: np.ndarray, a: float, v: float) -> None:
 
 
 def plot_trajectory(
-        t: int, Xt: np.ndarray, l: int,
+        t: int, Xt: np.ndarray, l: float,
         col: str = 'grey', dt: int = 20
     ) -> None:
     """
@@ -98,16 +97,17 @@ def plot_trajectory(
             alpha = 0.3
         else:
             alpha = 1
+
         plt.plot(mask_Xt0, mask_Xt1, col, alpha=alpha)
 
     return
 
 
 def plot_state_vectors(
-        t: int, X: np.ndarray, A: np.ndarray, v: float, l: int,
-        title: str, path: str,
-        sumvec: bool = True, save: bool = True, show: bool = False
-	) -> None:
+        t: int, X: np.ndarray, A: np.ndarray, v: float, l: float,
+        title: str, subtitle: str, path: str,
+        sumvec: bool = False, save: bool = True, show: bool = False
+    ) -> None:
     """
     Plot the state of a 2D multi-agent/particle system
 
@@ -125,6 +125,8 @@ def plot_state_vectors(
         height and width of the system
     title
         title of plot
+    subtitle
+        subtitle of plot
     path
         path to save file as, should be 'out/img/' folowed by a subdirectory
         named after the model name and parameters
@@ -146,7 +148,8 @@ def plot_state_vectors(
         plt.plot([l/2, S[0] + l/2], [l/2, S[1] + l/2], 'yellow', linewidth=3)
 
     plt.xlabel(t)
-    plt.title(title)
+    plt.title(subtitle)
+    plt.suptitle(title)
 
     if show:
         plt.show()
@@ -161,11 +164,11 @@ def plot_state_vectors(
 
 
 def plot_state_particles_trajectories(
-        t: int, Xt: np.ndarray, l: int,
-        title: str, path: str,
+        t: int, Xt: np.ndarray, l: float,
+        title: str, subtitle: str, path: str,
         cmass: bool = False, sumvec: bool = False,
         save: bool = True, show: bool = False
-	) -> None:
+    ) -> None:
     """
     Plot the state of a 2D multi-agent/particle system with a dot marker and
     trajectories
@@ -181,6 +184,8 @@ def plot_state_particles_trajectories(
         height and width of the system
     title
         title of plot
+    subtitle
+        subtitle of plot
     path
         path to save file as, should be 'out/img/' folowed by a subdirectory
         named after the model name and parameters
@@ -204,7 +209,8 @@ def plot_state_particles_trajectories(
         plot_trajectory(t, M, l, 'yellow')
 
     plt.xlabel(t)
-    plt.title(title)
+    plt.title(subtitle)
+    plt.suptitle(title)
 
     if show:
         plt.show()
@@ -219,7 +225,7 @@ def plot_state_particles_trajectories(
 
 
 def plot_trajectories(
-        X: np.ndarray, M: np.ndarray,
+        X: np.ndarray, M: np.ndarray, l: float,
         name: str, title: str, suptitle: str, path: str,
         save: bool = True, show: bool = False
     ) -> None:
@@ -234,6 +240,8 @@ def plot_trajectories(
     M
         numpy array of shape (T, 2), containing 2D spatial coordinates for the
         centre of mass at T time steps
+    l
+        height and width of the system
     title
         title of plot
     path
@@ -250,7 +258,7 @@ def plot_trajectories(
     plt.cla()
     for i in range(N):
         plot_trajectory(T, X[:, i], l, 'grey', T)
-    plt_trajectory(T, M, l, 'r', T)
+    plot_trajectory(T, M, l, 'r', T)
 
     plt.title(title)
     plt.suptitle(suptitle)

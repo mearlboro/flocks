@@ -8,7 +8,6 @@ from util.geometry import ang_to_vec, vec_to_ang, centre_of_mass, relative_posit
 from typing import Dict, List
 
 
-
 def process_space(
         Xt: np.ndarray, l: float,
         relative_to: str = 'centre_of_mass', normalise: bool = False
