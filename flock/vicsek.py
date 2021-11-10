@@ -1,12 +1,14 @@
 #!/usr/bin/python
 import numpy as np
 
+from flock.model   import FlockModel
 from util.geometry import *
+from util.util     import save_var
 
 from typing import Any, Dict, List, Tuple
 
 
-class VicsekModel:
+class VicsekModel(FlockModel):
     """
     Setup the parameters for the Vicsek model simulation. The model simulates
     the behaviour of moving particles in a 2D continuous space. The only rule
@@ -14,6 +16,8 @@ class VicsekModel:
     velocity v assumes the average direction of motion of the particles in its
     neighborhood of radius r with some random perturbation E added.
 
+    The strating positions and velocities of particles are distributed uniformly
+    at random.
 
     The position Xi of each particle i evolves as follows:
 
@@ -31,9 +35,9 @@ class VicsekModel:
     """
 
     def __init__(self,
-                 n: int, l: int, e: float,
+                 n: int, l: int,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
-                 v: float = 0.3, r: float = 1, dt: float = 1) -> None:
+                 e: float, v: float = 0.3, r: float = 1, dt: float = 1) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
         X for the N particles, and random angle array A for the angle of their
@@ -63,35 +67,20 @@ class VicsekModel:
         dt = 1
             discrete time unit
         """
-        self.n  = n
-        self.l  = l
-        self.e  = e
-        self.v  = v
-        self.r  = r
-        self.dt = dt
+        # initialise model-specific parameters
+        self.e = e
+        self.v = v
+        self.r = r
 
-        self.bounds = bounds
-        bounds_str  = bounds.name.lower()
-        self.neighbours = neighbours
-        neighbours_str  = neighbours.name.lower()
-
-        self.X = np.random.uniform(0, l, size = (n, 2))
+        # initialise particle velocity angles spread uniformly at random
         self.A = np.random.uniform(-np.pi, np.pi, size = (n, 1))
 
-        # we save the model name and params as a string, to be used when saving
-        # and we also typeset a figure title
-        rho = round(float(n) / l ** 2, 2)
-        self.string = f"vicsek_eta{e}_rho{rho}_r{r}_{bounds_str}_{neighbours_str}"
-        self.title = f"$\\eta$ = {e}, $\\rho$ = {rho}, $v$ = {v}, $r$ = {r}"
-
-        # we count the time that has passed with every update
-        self.t = 0
-
-        print(f"Initialised Vicsek model with {bounds_str} boundaries and {neighbours_str} neighbours")
-        print(f"with parameters l: {l}, n: {n}, eta: {e}, v: {v}, r: {r}")
+        # initalise a generic flocking model and uniform positions of particles
+        params = { 'eta': e, 'v': v, 'r': r }
+        super().__init__('Vicsek', n, l, bounds, neighbours, dt, params)
 
 
-    def new_A(self, i: int) -> float:
+    def __new_A(self, i: int) -> float:
         """
         Get updated angle of velocity for particle i by computing the average
         angle of all neighbouring particles (including itself) and adding a
@@ -113,7 +102,7 @@ class VicsekModel:
         return Aavg + dE
 
 
-    def new_X(self, i: int) -> Tuple[np.ndarray, float]:
+    def __new_X(self, i: int) -> Tuple[np.ndarray, float]:
         """
         Get updated coordinate and angle for particle i adding new velocity to
         old coordinate
@@ -134,7 +123,7 @@ class VicsekModel:
         """
 
         # find new position and velocity according to normal rule
-        Ai = self.new_A(i)
+        Ai = self.__new_A(i)
         Vi = ang_to_vec(Ai) * self.v
         Xi = self.X[i] + Vi * self.dt
 
@@ -164,9 +153,26 @@ class VicsekModel:
         increment counter t as a new timestep has passed
         """
 
-        X_A = [ self.new_X(i) for i in range(self.n) ]
+        X_A = [ self.__new_X(i) for i in range(self.n) ]
         self.X = np.array([  X_A[i][0]  for i in range(self.n) ])
         self.A = np.array([ [X_A[i][1]] for i in range(self.n) ])
 
         self.t += 1
+
+
+    def save(self, path) -> None:
+        """
+        Save the state of every particle in the system (x-coord, y-coord, angle)
+        to the given path
+
+        Side-effects
+        ------
+        if non-existent, create text files to save each variable
+        append variable state to corresponding file
+        """
+        print(f'{self.t}: saving system state to {path}/')
+        save_var(self.X[:,0], 'x1', path)
+        save_var(self.X[:,1], 'x2', path)
+        save_var(self.A[:,0], 'a',  path)
+
 

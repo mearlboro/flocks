@@ -2,10 +2,9 @@
 import click
 import numpy as np
 
+from flock.vicsek import VicsekModel
 from util.geometry import EnumBounds, EnumNeighbours
 from util.plot import plot_state_vectors, plot_state_particles_trajectories
-from util.util import sim_dir, dump_state
-from vicsek.dynamics import VicsekModel
 
 from typing import Any, Dict, List, Tuple
 
@@ -14,9 +13,9 @@ from typing import Any, Dict, List, Tuple
 @click.command()
 @click.option('-t', default = 100,  help='Number of timesteps')
 @click.option('-n', default = 10,   help='Number of particles')
-@click.option('-l', default = 5,    help='System size')
+@click.option('-l', default = 2,    help='System size')
 @click.option('-e', default = 0.4,  help='Perturbation of angular velocity')
-@click.option('-v', default = 0.3,  help='Absolute velocity')
+@click.option('-v', default = 0.1,  help='Absolute velocity')
 @click.option('-r', default = 1.0,  help='Radius or number of neighbours to follow')
 @click.option('--trajectories', is_flag = True, default = False,
               help = "If true draw particle with trajectories, otherwise velocity vectors")
@@ -28,7 +27,7 @@ from typing import Any, Dict, List, Tuple
               help = 'Use neighbours in a radius r or nearest r neighbours')
 @click.option('--saveimg', is_flag = True, default = False,
               help = 'Save images for each state')
-def run_simulation(
+def vicsek(
         t: int, n: int, l: int, e: float, v: float, r: float,
         trajectories: bool, bounds: str, neighbours: str, saveimg: bool
     ) -> None:
@@ -43,21 +42,18 @@ def run_simulation(
     """
 
     # initialise model
-    sim = VicsekModel(n, l, e, EnumBounds[bounds], EnumNeighbours[neighbours], v, r)
+    sim = VicsekModel(n, l, EnumBounds[bounds], EnumNeighbours[neighbours], e, v, r)
 
     # initialise folder to save simulation results
-    txtpath = sim_dir('out/txt', sim.string)
+    txtpath = sim.mkdir('out/txt')
     if saveimg:
-        imgpath = sim_dir('out/img', sim.string)
+        imgpath = sim.mkdir('out/img')
 
     Xt = np.zeros((t, n, 2))
 
     while sim.t < t:
         # save current state to text
-        print(f'{sim.t}: saving system state to {txtpath}/')
-        dump_state(sim.X[:, 0], 'x', txtpath)
-        dump_state(sim.X[:, 1], 'y', txtpath)
-        dump_state(sim.A[:, 0], 'a', txtpath)
+        sim.save(txtpath)
 
         # save current state to image file
         if saveimg:
@@ -83,6 +79,12 @@ def run_simulation(
         sim.update()
 
 
-if __name__ == "__main__":
 
-    run_simulation()
+@click.group()
+def options():
+    pass
+
+options.add_command(vicsek)
+
+if __name__ == "__main__":
+    options()
