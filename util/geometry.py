@@ -89,26 +89,28 @@ def average_angles(A: np.ndarray) -> float:
     return np.arctan2(np.sum(np.sin(A)), np.sum(np.cos(A)))
 
 
-def sum_vec(thetas: List[float], v: float) -> np.ndarray:
+def sum_vec(A: List[float], v: float) -> np.ndarray:
     """
-    Sum given vectors with orientation stored in thetas and velocity v
+    Sum given vectors with angle stored in A and absolute velocity v
 
     Params
     ------
     thetas
         list of floats representing angles in interval [-pi, pi]
+    v
+        absolute vel
 
     Returns
     ------
     numpy array of shape (2,) with the 2D coordinates of the sum vector's tip
     """
-    vecs = np.array([ ang_to_vec(theta) * v for theta in thetas ])
+    vecs = np.array([ ang_to_vec(a) * v for a in A ])
     sumv = np.array([ sum(vecs[:, 0]), sum(vecs[:, 1]) ])
 
     return sumv
 
 
-def out_of_bounds(x: np.ndarray, L: int) -> bool:
+def out_of_bounds(x: np.ndarray, L: float) -> bool:
     """
     Checks if 2D coordinates are out of bounds (0, 0) and (L, L)
 
@@ -126,7 +128,7 @@ def out_of_bounds(x: np.ndarray, L: int) -> bool:
     return any(x < 0) or any(x > L)
 
 
-def bounds_wrap(x: np.ndarray, L: int) -> np.ndarray:
+def bounds_wrap(x: np.ndarray, L: float) -> np.ndarray:
     """
     Ensures point x is within bounds (0, 0) and (L, L) in a toroidal world
 
@@ -157,7 +159,7 @@ def bounds_wrap(x: np.ndarray, L: int) -> np.ndarray:
 
 
 def bounds_reflect(
-        x: np.ndarray, v: np.ndarray, dt: float, L: int
+        x: np.ndarray, v: np.ndarray, L: float
     ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Ensures particle at coordinates in x is within bounds (0, 0) and (L, L) by
@@ -181,8 +183,6 @@ def bounds_reflect(
         numpy array of shape (2,), 2D coordinates of point x at current time
     v
         numpy array of shape (2,), velocity vector of particle at current time
-    dt
-        time increment
     L
         size of the plane
 
@@ -208,10 +208,7 @@ def bounds_reflect(
 
 
 def neighbours(
-        i: int,
-        X: np.ndarray,
-        r: float,
-        topology: EnumNeighbours = EnumNeighbours.METRIC
+        i: int, X: np.ndarray, r: float, topology: EnumNeighbours
     ) -> List[int]:
     """
     Get the neighbours of a given point of index i in the list of points X.
@@ -258,36 +255,98 @@ def neighbours(
     return neighbours
 
 
-def centre_of_mass(X: np.ndarray, l: int = 0) -> np.ndarray:
+def periodic_mean(x: np.ndarray, L: float) -> float:
+    """
+    Given an array of 1-dimensional coordinates and the size of the space
+    it computes mean by taking into account the boundaries by mapping the
+    data to points on the unit circle
+    Cf. Bai, Breen (2008). "Calculating Center of Mass in an Unbounded 2D
+    Environment". Journal of Graphics Tools, vol. 13 - Issue 4, pp 53-60.
+    https://doi.org/10.1080/2151237X.2008.10129266
+
+    Params
+    ------
+    x
+        numpy array of shape (N,) with one dimension of coordinates of N points
+    L
+        the size of the space in that dimension
+
+    Returns
+    ------
+    centre of mass of all coordinates accounting for the periodic boundaries
+    """
+    cmap  = x / L * 2 * np.pi - np.pi
+    cmean = np.arctan2(np.sin(cmap).mean(), np.cos(cmap).mean())
+    mean = (cmean + np.pi) / (2 * np.pi) * L
+
+    return mean
+
+
+def periodic_diff(
+        x: np.ndarray, y: np.ndarray, L: float, norm: bool = False
+    ) -> np.ndarray:
+    """
+    Given two points in a D-dimensional space of size LxL with periodic bounds,
+    return the difference vector between them using the minimum image convention
+    cf. https://en.wikipedia.org/wiki/Periodic_boundary_conditions
+
+    Params
+    -----
+    x
+        numpy array of shape (D,) with the coordinates of the first point
+    y
+        numpy array of shape (D,) with the coordinates of the second point
+    L
+        size of space
+    norm
+        if set, return the metric distance (L2 norm) between the two vectors,
+        otherwise return the difference vector
+    """
+    imgs = [ [0, 0], [0, L], [0, -L], [L, 0], [L, L], [L, -L], [-L, 0], [-L, L], [-L, -L] ]
+    diff = [ (x + i - y, np.linalg.norm(x + i - y)) for i in imgs ]
+    res  = min(diff, key = lambda d: d[1])
+
+    return res[1] if norm else res[0]
+
+
+def centre_of_mass(
+        X: np.ndarray, L: float, topology: EnumBounds
+    ) -> np.ndarray:
     """
     Get coordinates of the centre of mass of all N points in the flock.
-    If l is non-zero, normalize by the dimensions of the D-dimensional space.
 
     Params
     ------
     X
         numpy array of shape (N, D) with the coordinates of N points in
         a D-dimensional space of size l
-    l
+    L
         size of space
+    topology
+        whether the space's boundaries are reflective or periodic
 
     Returns
     ------
     numpy array of shape (D,) with the centre of mass coordinates
     """
-    c = np.mean(X, axis = 0)
-    if l:
-        c /= l
+    (_, D) = X.shape
+
+    if topology == EnumBounds.PERIODIC:
+        c = np.array([ periodic_mean(X[:, d], L) for d in range(D) ])
+    else:
+        c = np.mean(X, axis = 0)
+
     return c
 
 
 def relative_positions(
-        X: np.ndarray, c: np.ndarray, l: float = 0
+        X: np.ndarray, c: np.ndarray, L: float, topology: EnumBounds
     ) -> np.ndarray:
     """
     Compute N relative position vectors w.r.t. to a given point (can be centre
     of mass of the flock, or the center of the space in which the flock moves).
-    If l is non-zero, normalize by the dimensions of the D-dimensional space.
+    We use the minimum image convention for computing algorithms for periodic
+    boundaries cf. https://en.wikipedia.org/wiki/Periodic_boundary_conditions
 
     Params
     ------
@@ -296,15 +355,19 @@ def relative_positions(
         a D-dimensional space of size l
     c
         numpy array of shape (D,) for the coordinates of the point of reference
-    l
+    L
         size of space
+    topology
+        whether the space's boundaries are reflective or periodic
 
     Returns
     ------
     numpy array of shape (N, D) with relative position vectors
     """
-    R = np.array([ x - c for x in X ])
-    if l:
-        R /= l
+    if topology == EnumBounds.PERIODIC:
+        R = np.array([ periodic_diff(x, c, L) for x in X ])
+    else:
+        R = np.array([ x - c for x in X ])
+
     return R
 

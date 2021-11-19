@@ -15,8 +15,8 @@ def prepare_state_plot(l: float) -> None:
     plt.style.use("dark_background")
     frame = plt.gca()
     frame.set_aspect("equal")
-    frame.axes.get_xaxis().set_ticks(range(l+1))
-    frame.axes.get_yaxis().set_ticks(range(l+1))
+    frame.axes.get_xaxis().set_ticks(range(int(l)+1))
+    frame.axes.get_yaxis().set_ticks(range(int(l)+1))
     return
 
 
@@ -165,6 +165,7 @@ def plot_state_vectors(
 
 def plot_state_particles_trajectories(
         t: int, Xt: np.ndarray, l: float,
+        topology: EnumBounds,
         title: str, subtitle: str, path: str,
         cmass: bool = False, sumvec: bool = False,
         save: bool = True, show: bool = False
@@ -182,6 +183,8 @@ def plot_state_particles_trajectories(
         particles at all timepoints so far
     l
         height and width of the system
+    topology
+        whether the space's boundaries are reflective or periodic
     title
         title of plot
     subtitle
@@ -205,7 +208,7 @@ def plot_state_particles_trajectories(
         plot_particle(Xt[t, i])
 
     if cmass:
-        M = np.mean(Xt, axis = 1)
+        M = np.array([ centre_of_mass(X, l, topology) for X in Xt ])
         plot_trajectory(t, M, l, 'yellow')
 
     plt.xlabel(t)

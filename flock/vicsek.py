@@ -134,9 +134,9 @@ class VicsekModel(FlockModel):
                 Xi = bounds_wrap(Xi, self.l)
             # otherwise, specular reflection happens against the walls
             else:
-                (Xi, Vi) = bounds_reflect(Xi, Vi, self.dt, self.l)
+                (Xi, Vi) = bounds_reflect(Xi, Vi, self.l)
                 while out_of_bounds(Xi, self.l):
-                    (Xi, Vi) = bounds_reflect(Xi, Vi, self.dt, self.l)
+                    (Xi, Vi) = bounds_reflect(Xi, Vi, self.l)
 
                 Ai = vec_to_ang(Vi)
 

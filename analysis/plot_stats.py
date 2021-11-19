@@ -13,13 +13,11 @@ from util.plot import plot_trajectories
 from typing import Any, Dict, List, Tuple
 
 titles = {
-    'avg_angle': 'Average orientation of particles, ',
-    'avg_abs_vel': 'Absolute average velocity of particles, ',
     'avg_dist_cmass': 'Average distance from centre of mass, ',
+    'std_dist_cmass': 'Standard deviation of distance from centre of mass, ',
+    'avg_abs_vel': 'Absolute average velocity of particles, ',
+    'std_angle': 'Standard deviation of orientation of particles, ',
 }
-
-stats_names = [ 'avg_dist_cmass', 'var_dist_cmass', 'avg_angle', 'var_angle',
-                'avg_abs_vel', 'var_abs_vel' ]
 
 
 def plots_trajectories(m: FlockModel, stats: Dict[str, Any], pth: str):
@@ -38,51 +36,35 @@ def plots_trajectories(m: FlockModel, stats: Dict[str, Any], pth: str):
 def plots_model_stats(filename: str, subtitle: str, stats: Dict[str, Any], pth: str):
 
     plt.plot(range(stats['t']), stats['avg_dist_cmass'])
-    plt.title('Average distance of all particles from centre of mass at time t')
+    plt.title('Average distance from centre of mass at time t')
     plt.suptitle(subtitle)
     plt.xlabel('t (s)')
     plt.ylabel('$\mathbb{E} [||x - x_M||]$ (m)')
     plt.savefig(f"{pth}/avg_dist_cmass_{filename}.png")
     plt.cla()
 
-    plt.plot(range(stats['t']), stats['var_dist_cmass'])
-    plt.title('Variance of distance of particles from centre of mass at time t')
+    plt.plot(range(stats['t']), stats['std_dist_cmass'])
+    plt.title('Standard deviation of distance from centre of mass at time t')
     plt.suptitle(subtitle)
     plt.xlabel('t (s)')
-    plt.ylabel('$\mathbb{V} [||x_i - x_M||]$ (m)')
-    plt.savefig(f"{pth}/var_dist_cmass_{filename}.png")
+    plt.ylabel('$\\sigma_{X_M}$')
+    plt.savefig(f"{pth}/std_dist_cmass_{filename}.png")
     plt.cla()
 
     plt.plot(range(stats['t']), stats['avg_abs_vel'])
     plt.title('Absolute value of average velocity of all particles at time t')
     plt.suptitle(subtitle)
     plt.xlabel('t (s)')
-    plt.ylabel('$\mathbb{E} [v_a] (m/s)$')
+    plt.ylabel('$\sum_i^N \mathbf{v}_{X_i}$')
     plt.savefig(f"{pth}/avg_abs_vel_{filename}.png")
     plt.cla()
 
-    plt.plot(range(stats['t']), stats['var_abs_vel'])
-    plt.title('Variance of absolute average velocity of all particles at time t')
-    plt.suptitle(subtitle)
-    plt.xlabel('t (s)')
-    plt.ylabel('$\mathbb{V}[v_a]$ (m/s)')
-    plt.savefig(f"{pth}/var_abs_vel_{filename}.png")
-    plt.cla()
-
-    plt.plot(range(stats['t']), stats['avg_angle'])
-    plt.title('Average orientation of all particles at time t')
-    plt.suptitle(subtitle)
-    plt.xlabel('t (s)')
-    plt.ylabel('$\mathbb{E} [\\theta]$ (rad)')
-    plt.savefig(f"{pth}/avg_angle_{filename}.png")
-    plt.cla()
-
-    plt.plot(range(stats['t']), stats['var_angle'])
-    plt.title('Variance of orientation of all particles at time t')
+    plt.plot(range(stats['t']), stats['std_angle'])
+    plt.title('Standard deviation of orientation of all particles at time t')
     plt.suptitle(subtitle)
     plt.xlabel('t (s)')
     plt.ylabel('$\mathbb{V} [\\theta]$ (rad)')
-    plt.savefig(f"{pth}/var_angle_{filename}.png")
+    plt.savefig(f"{pth}/std_angle_{filename}.png")
     plt.cla()
 
 
@@ -130,6 +112,8 @@ def plot_stats(path: str, model: str) -> None:
 
     models = find_models(path, model)
 
+    plt.rcParams['figure.figsize'] = [12, 8]
+
     for cur_model in models.keys():
         m = models[cur_model]
         print(f"Plotting model evolution and characteristics to {path}/{cur_model}")
@@ -137,8 +121,8 @@ def plot_stats(path: str, model: str) -> None:
         (t, n, _) = m.traj['X'].shape
 
         stats   = { 't': t }
-        stats |= process_space( m.traj['X'], m.l, 'centre_of_mass')
-        stats |= process_angles(m.traj['A'])
+        stats |= process_space( m.traj['X'], m.l, m.bounds)
+        stats |= process_angles(m.traj['A'], m.params['v'])
 
         pth = os.path.join(path, m.string)
         title = f"{m.title} {m.subtitle}"

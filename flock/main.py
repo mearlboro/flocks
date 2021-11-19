@@ -66,11 +66,11 @@ def vicsek(
                 # remember all positions so far
                 Xt[sim.t] = sim.X
                 plot_state_particles_trajectories(
-                    sim.t, Xt, l, sim.title, sim.subtitle, imgpath, True)
+                    sim.t, Xt, l, sim.bounds, sim.title, sim.subtitle, imgpath, True)
                 # bug when saving the first image, so save it again
                 if (sim.t == 0):
                     plot_state_particles_trajectories(
-                        sim.t, Xt, l, sim.title, sim.subtitle, imgpath, True)
+                        sim.t, Xt, l, sim.bounds, sim.title, sim.subtitle, imgpath, True)
             else:
                 print(f'{sim.t}: saving system state to {imgpath}/')
                 plot_state_vectors(
