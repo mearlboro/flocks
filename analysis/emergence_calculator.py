@@ -17,7 +17,31 @@ Pedro Mediano, Oct 2021
 import numpy as np
 import jpype as jp
 
-def emergence_psi(X, V, tau=1):
+from typing import Iterator
+
+JIDT_PATH = 'infodynamics.jar'
+
+def format(X: np.ndarray) -> Iterator[np.ndarray]:
+    """
+    Shape the trajectory array produced by a FlockingModel to an iterable of
+    np.ndarray as required by the input to `emergence_psi`
+
+    Params
+    -------
+    X
+        np array containing with d-dimensional trajectories of a system with n
+        parts across t timesteps - of shape (t, n, d)
+
+    Returns
+    ------
+    an iterable of n numpy arrays of shape (t, d)
+    """
+    (_, n, _) = X.shape
+
+    return iter([ np.array(X[:, i]) for i in range(n) ])
+
+
+def emergence_psi(X: Iterator[np.ndarray], V: np.ndarray, tau: int = 1) -> float:
     """
     Calculate the emergence criterion Psi for a given set of micro variables X
     and a macro variable V, assuming they are jointly normally distributed (for
@@ -47,21 +71,23 @@ def emergence_psi(X, V, tau=1):
     """
     ## Some preliminaries for interfacing with Java
     if not jp.isJVMStarted():
-        jp.startJVM(jp.getDefaultJVMPath(), '-ea', '-Djava.class.path=infodynamics.jar')
+        jp.startJVM(jp.getDefaultJVMPath(), '-ea', f'-Djava.class.path={JIDT_PATH}')
     calc_name = 'infodynamics.measures.continuous.gaussian.MutualInfoCalculatorMultiVariateGaussian'
-    javify = lambda v: jp.JArray(jp.JDouble, 2)(v.tolist())
+    javify = lambda v, d: jp.JArray(jp.JDouble, d)(v.tolist())
 
     ## Compute mutual info in macro variable
+    Dv = 1 if len(V.shape) == 1 else V.shape[1]
     vmiCalc = jp.JClass(calc_name)()
-    vmiCalc.initialise(V.shape[1], V.shape[1])
-    vmiCalc.setObservations(javify(V[:-tau]), javify(V[tau:]))
+    vmiCalc.initialise(Dv, Dv)
+    vmiCalc.setObservations(javify(V[:-tau], Dv), javify(V[tau:], Dv))
     psi = vmiCalc.computeAverageLocalOfObservations()
 
     ## Compute mutual info in every micro variable
     for Xi in X:
+        Dx = 1 if len(Xi.shape) == 1 else Xi.shape[1]
         xmiCalc = jp.JClass(calc_name)()
-        xmiCalc.initialise(Xi.shape[1], V.shape[1])
-        xmiCalc.setObservations(javify(Xi[:-tau]), javify(V[tau:]))
+        xmiCalc.initialise(Dx, Dv)
+        xmiCalc.setObservations(javify(Xi[:-tau], Dx), javify(V[tau:], Dv))
         psi -= xmiCalc.computeAverageLocalOfObservations()
 
     return psi
@@ -73,5 +99,4 @@ if __name__ == '__main__':
     V = np.random.randn(1000, 2)
 
     print('Emergence for random data: %f'%emergence_psi(X, V))
-
 
