@@ -18,14 +18,19 @@ labels = {
     'avg_abs_vel': '$\\frac{1}{N v}  \\sum_i^N \mathbf{v}_{X_i}$',
     'std_angle': '$\\sigma_{\\theta}$',
     'std_dist_cmass': '$\\sigma_{X_M}$',
-    'psi_cmass': '$\\psi_{x_M}$'
+    'psi_cmass': '$\\Psi^{(1)}_{(t,t+1)}(X_M)$',
+    'psi_whole': '$I(X_M(t);X_M(t+1))$',
+    'psi_parts': '$\\sum_{i=1}^N I(X_i(t); X_M(t+1))$'
 }
 titles = {
     'avg_abs_vel': 'Absolute average normalised velocity',
     'std_angle': 'Standard deviation of particle direction',
     'std_dist_cmass': 'Standard deviation of distance from centre of mass',
-    'psi_cmass': 'Emergence $\\psi$ for centre of mass'
+    'psi_cmass': 'Emergence $\\Psi$ for centre of mass',
+    'psi_whole': 'Self-predictability of the center of mass',
+    'psi_parts': 'Mutual information from individual particles'
 }
+to_plot = [ 'avg_abs_vel', 'std_angle', 'std_dist_cmass', 'psi_cmass' ]
 
 
 def find_models(path: str, name: str) -> Dict[str, 'FlockModel']:
@@ -102,7 +107,7 @@ def aggregate_model_stats(
             tmp = tmp[pval]
 
         # iterate throuh all time series from all experiments with those params
-        # and collect statistics
+        # and collect statistics - averaged accross time foreach experiment
         for exp in exp_in_batch:
             m = models[exp]
 
@@ -111,41 +116,58 @@ def aggregate_model_stats(
 
             s  = process_space( m.traj['X'][skip:], l, m.bounds)
             s |= process_angles(m.traj['A'][skip:], m.params['v'])
-            s |= { 'psi_cmass': em.emergence_psi(em.format(m.traj['X'][skip:]), s['cmass']) }
+            (psi, whole, parts) = em.emergence_psi(em.format(m.traj['X'][skip:]), s['cmass'])
+            s |= { 'psi_cmass': psi, 'psi_whole': whole, 'psi_parts': parts }
 
             for stat in stats_names:
                 if stat in tmp.keys():
-                    tmp[stat] += np.mean(s[stat])
+                    tmp[stat].append(np.mean(s[stat]))
                 else:
-                    tmp[stat]  = np.mean(s[stat])
+                    tmp[stat] = [ np.mean(s[stat]) ]
 
         # average everything accross all experiments
         for stat in stats_names:
-            tmp[stat] /= float(count)
+            tmp[f'{stat}_mean'] = np.mean(tmp[stat])
+            tmp[f'{stat}_std']  = np.std(tmp[stat])
 
     return stats
 
 
 markers = itertools.cycle(('.', '+', '^', 'o', '*'))
 
-def plot_2param(name: str, stats: Dict[str, Any], param: List[str], path: str):
-
+def plot_2param(
+        name: str, stats: Dict[str, Any],
+        param: List[str], path: str, stats_to_plot: List[str] = to_plot
+    ):
     if len(param) != 2:
         raise ValueError(f'Can only plot aggregate plot with 2 params, but {param} given')
         exit(0)
 
-    for val in titles.keys():
+    for stat in titles.keys():
         for p0 in stats.keys():
             xval = [ p1 for p1 in stats[p0].keys() ]
-            yval = [ np.mean(stats[p0][p1][val]) for p1 in xval ]
-
-            plt.plot(xval, yval,
+            yval = [ stats[p0][p1][f'{stat}_mean'] for p1 in xval ]
+            yerr = [ stats[p0][p1][f'{stat}_std']  for p1 in xval ]
+            plt.errorbar(xval, yval, yerr=yerr,
                 linestyle = '--', marker = next(markers), c = np.random.rand(3,))
-            plt.title(titles[val] + f" vs $\\{param[1]}$")
+            plt.title(titles[stat] + f" vs $\\{param[1]}$")
             plt.suptitle(name + f" $\\{param[0]}$ = {p0}", fontsize = 20)
-            plt.xlabel('$\\eta$',   fontsize = 14)
-            plt.ylabel(labels[val], fontsize = 14)
-            plt.savefig(f"{path}/{name}_{param[0]}{p0}_{param[1]}_vs_{val}.png")
+            plt.ylabel(labels[stat], fontsize = 14)
+
+            if 'psi_cmass' in stat:
+                # also plot the whole and parts on the same graph as psi
+                yval = [ stats[p0][p1]['psi_whole_mean'] for p1 in xval]
+                yerr = [ stats[p0][p1]['psi_whole_std']  for p1 in xval]
+                plt.errorbar(xval, yval, yerr, label=labels['psi_whole'],
+                    linestyle = '--', marker = next(markers), c = np.random.rand(3,))
+                yval = [ stats[p0][p1]['psi_parts_mean'] for p1 in xval]
+                yerr = [ stats[p0][p1]['psi_parts_std']  for p1 in xval]
+                plt.errorbar(xval, yval, yerr=yerr, label=labels['psi_parts'],
+                    linestyle = '--', marker = next(markers), c = np.random.rand(3,))
+                plt.legend()
+
+            plt.xlabel('$\\' + f'{param[1]}$', fontsize = 14)
+            plt.savefig(f"{path}/{name}_{param[0]}{p0}_{param[1]}_vs_{stat}.png")
             plt.cla()
 
 
@@ -156,31 +178,31 @@ def plot_3param(name: str, stats: Dict[str, Any], param: List[str], path: str):
         exit(0)
 
     markers = itertools.cycle(('.', '+', '^', 'o', '*'))
-    for val in titles.keys():
+    for stat in titles.keys():
         for p0 in stats.keys():
             xval = [ p1 for p1 in stats[p0].keys() ]
 
             groups = list(set([ p2 for p1 in xval for p2 in stats[p0][p1].keys() ]))
             for p2 in groups:
-                yval = [ np.mean(stats[p0][p1][p2][val]) for p1 in xval
+                yval = [ np.mean(stats[p0][p1][p2][stat]) for p1 in xval
                                                          if p2 in stats[p0][p1].keys()]
 
                 plt.plot(xval, yval, label = f'{param[2]} = {p2}',
                     linestyle = '--', marker = next(markers), c = np.random.rand(3,))
 
-            plt.title(titles[val] + f" vs $\\{param[1]}$")
+            plt.title(titles[stat] + f" vs $\\{param[1]}$")
             plt.suptitle(name + f" $\\{param[0]}$ = {p0}", fontsize = 20)
             plt.xlabel('$\\eta$',   fontsize = 14)
-            plt.ylabel(labels[val], fontsize = 14)
+            plt.ylabel(labels[stat], fontsize = 14)
             plt.legend()
-            plt.savefig(f"{path}/{name}_{param[0]}{p0}_{param[1]}_{param[2]}_vs_{val}.png")
+            plt.savefig(f"{path}/{name}_{param[0]}{p0}_{param[1]}_{param[2]}_vs_{stat}.png")
             plt.cla()
 
 
 @click.command()
 @click.option('--path', default='out/txt/', help='Path to load model data from')
 @click.option('--out',  default='out/plt/', help='Path to save plots to')
-@click.option('--model', default='Vicsek_periodic_metric',  help='Model type to load')
+@click.option('--model', default='Vicsek',  help='Model type to load')
 @click.option('--aggregate', '-a', multiple = True, default=[ 'rho', 'eta' ], help='Model parameters by which it will aggregate simulations to produce stats')
 def plot_results(path: str, out: str, model: str, aggregate: List[str]) -> None:
     """
@@ -202,7 +224,7 @@ def plot_results(path: str, out: str, model: str, aggregate: List[str]) -> None:
         print(f'No model directories of type {model} found in {path}')
         exit(0)
 
-    stats  = aggregate_model_stats(models, aggregate, list(titles.keys()))
+    stats  = aggregate_model_stats(models, aggregate, list(titles.keys()), 0)
 
     plt.rcParams['figure.figsize'] = [10, 7]
     if len(aggregate) == 2:

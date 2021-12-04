@@ -80,17 +80,19 @@ def emergence_psi(X: Iterator[np.ndarray], V: np.ndarray, tau: int = 1) -> float
     vmiCalc = jp.JClass(calc_name)()
     vmiCalc.initialise(Dv, Dv)
     vmiCalc.setObservations(javify(V[:-tau], Dv), javify(V[tau:], Dv))
-    psi = vmiCalc.computeAverageLocalOfObservations()
+    whole = vmiCalc.computeAverageLocalOfObservations()
+
 
     ## Compute mutual info in every micro variable
+    parts = 0
     for Xi in X:
         Dx = 1 if len(Xi.shape) == 1 else Xi.shape[1]
         xmiCalc = jp.JClass(calc_name)()
         xmiCalc.initialise(Dx, Dv)
         xmiCalc.setObservations(javify(Xi[:-tau], Dx), javify(V[tau:], Dv))
-        psi -= xmiCalc.computeAverageLocalOfObservations()
+        parts += xmiCalc.computeAverageLocalOfObservations()
 
-    return psi
+    return (whole - parts, whole, parts)
 
 
 if __name__ == '__main__':
