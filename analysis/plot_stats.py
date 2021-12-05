@@ -12,76 +12,64 @@ from util.plot import plot_trajectories
 
 from typing import Any, Dict, List, Tuple
 
+
+labels = {
+    'avg_abs_vel': '$\\frac{1}{N v}  \\sum_i^N \mathbf{v}_{X_i}$',
+    'std_angle': '$\\sigma_{\\theta}$',
+    'avg_dist_cmass': '$\\mathbb{E}[|X_i, X_M|]$',
+    'std_dist_cmass': '$\\sigma_{|X_i, X_M|}$',
+}
 titles = {
-    'avg_dist_cmass': 'Average distance from centre of mass, ',
-    'std_dist_cmass': 'Standard deviation of distance from centre of mass, ',
-    'avg_abs_vel': 'Absolute average velocity of particles, ',
-    'std_angle': 'Standard deviation of orientation of particles, ',
+    'avg_abs_vel': 'Absolute average normalised velocity ',
+    'std_angle': 'Standard deviation of particle direction ',
+    'avg_dist_cmass': 'Average distance from centre of mass ',
+    'std_dist_cmass': 'Standard deviation of distance from centre of mass ',
 }
 
 
-def plots_trajectories(m: FlockModel, stats: Dict[str, Any], pth: str):
+def plots_trajectories(m: FlockModel, stats: Dict[str, Any], pth: str) -> None:
 
     plot_trajectories(m.traj['X'], stats['cmass'], m.l,
         m.string,
         'Trajectories of particles and centre of mass',
         f"{m.title} {m.subtitle}", pth, True, False)
 
-    plot_trajectories(stats['rel_pos'], np.array([[0,0]]* stats['t']), m.l,
+    plot_trajectories(stats['rel_pos'], np.array([[0, 0]] * stats['t']), m.l,
         f"{m.string}_relative",
         'Trajectories of particles relative to centre of mass',
         f"{m.title} {m.subtitle}", pth, True, False)
 
 
-def plots_model_stats(filename: str, subtitle: str, stats: Dict[str, Any], pth: str):
+def plots_model_stats(
+        filename: str, subtitle: str, stats: Dict[str, Any], pth: str
+    ) -> None:
 
-    plt.plot(range(stats['t']), stats['avg_dist_cmass'])
-    plt.title('Average distance from centre of mass at time t')
-    plt.suptitle(subtitle)
-    plt.xlabel('t (s)')
-    plt.ylabel('$\mathbb{E} [||x - x_M||]$ (m)')
-    plt.savefig(f"{pth}/avg_dist_cmass_{filename}.png")
-    plt.cla()
-
-    plt.plot(range(stats['t']), stats['std_dist_cmass'])
-    plt.title('Standard deviation of distance from centre of mass at time t')
-    plt.suptitle(subtitle)
-    plt.xlabel('t (s)')
-    plt.ylabel('$\\sigma_{X_M}$')
-    plt.savefig(f"{pth}/std_dist_cmass_{filename}.png")
-    plt.cla()
-
-    plt.plot(range(stats['t']), stats['avg_abs_vel'])
-    plt.title('Absolute value of average velocity of all particles at time t')
-    plt.suptitle(subtitle)
-    plt.xlabel('t (s)')
-    plt.ylabel('$\sum_i^N \mathbf{v}_{X_i}$')
-    plt.savefig(f"{pth}/avg_abs_vel_{filename}.png")
-    plt.cla()
-
-    plt.plot(range(stats['t']), stats['std_angle'])
-    plt.title('Standard deviation of orientation of all particles at time t')
-    plt.suptitle(subtitle)
-    plt.xlabel('t (s)')
-    plt.ylabel('$\mathbb{V} [\\theta]$ (rad)')
-    plt.savefig(f"{pth}/std_angle_{filename}.png")
-    plt.cla()
+    for stat in titles.keys():
+        plt.plot(range(stats['t']), stats[stat])
+        plt.title(titles[stat])
+        plt.suptitle(subtitle)
+        plt.xlabel('t (s)', size = 14)
+        plt.ylabel(labels[stat], size = 14)
+        plt.savefig(f"{pth}/{filename}_{stat}.png")
+        plt.cla()
 
 
-def plots_autocorrels(filename: str, subtitle: str, stats: Dict[str, Any], window: int, pth: str):
+def plots_autocorrels(
+        filename: str, subtitle: str, stats: Dict[str, Any], window: int, pth: str
+    ) -> None:
 
-    for val in titles.keys():
-        V = stats[val]
+    for stat in titles.keys():
+        V = stats[stat]
         R = autocorrelation(V, window)
 
-        plt.bar(range(1,window+1), R, width=0.3)
-        plt.title(titles[val] + 'autocorrelation function')
+        plt.bar(range(1, window + 1), R, width = 0.3)
+        plt.title(titles[stat] + ', autocorrelation')
         plt.suptitle(subtitle)
-        plt.xlabel('$\\Delta$ t (s)')
-        plt.ylabel('corellation')
-        plt.gca().get_xaxis().set_ticks(range(window+1))
-        plt.gca().get_yaxis().set_ticks([-1,-.5,0,.5,1])
-        plt.savefig(f"{pth}/autocorrel_{val}_{filename}.png")
+        plt.xlabel('$\\Delta$ t (s)', size = 14)
+        plt.ylabel('autocorellation', size = 14)
+        plt.gca().get_xaxis().set_ticks(range(window + 1))
+        plt.gca().get_yaxis().set_ticks([-1, -.5, 0, .5, 1])
+        plt.savefig(f"{pth}/{filename}_autocorrel_{stat}.png")
         plt.cla()
 
 
@@ -91,6 +79,10 @@ def find_models(path: str, name: str) -> Dict[str, 'FlockModel']:
     Load models from given `path` if they match the `name` parameter and return
     dictionary with directory name as key, and the model object as value
     """
+    d = os.path.basename(path)
+    if name in d:
+        return { d: FlockModel.load(path) }
+
     dirs = [d for d in os.listdir(path)
               if os.path.isdir(os.path.join(path, d)) and name in d ]
     models = { d: FlockModel.load(os.path.join(path, d)) for d in dirs }
@@ -100,10 +92,16 @@ def find_models(path: str, name: str) -> Dict[str, 'FlockModel']:
 @click.command()
 @click.option('--path', default='out/txt/', help='Path to load model data from')
 @click.option('--model', default='Vicsek',  help='Model type to load')
-def plot_stats(path: str, model: str) -> None:
+@click.option('--out', default='out/plt/', help='Path to save graph to')
+def plot_stats(path: str, model: str, out: str) -> None:
     """
-    After a number of Vicsek simulations were run, plot the results either by
-    showing trajectories or averages, variances and autocorrelations
+    After a Vicsek simulation is run, plot the results either by showing
+    trajectories or averages, variances and autocorrelations.
+
+    If an output folder from a simulation is given, analyse just that simulation;
+    otherwise, scan for simulation output folders in `path` and analyse all.
+    A sub-directory with the same name as the simulation sub-directory will be
+    created in `out`.
 
     Run from the root pyflocks/ folder
 
@@ -116,7 +114,10 @@ def plot_stats(path: str, model: str) -> None:
 
     for cur_model in models.keys():
         m = models[cur_model]
-        print(f"Plotting model evolution and characteristics to {path}/{cur_model}")
+        outpth = os.path.join(out, m.string)
+        if not os.path.isdir(outpth):
+            os.mkdir(outpth)
+        print(f"Plotting model evolution and characteristics to {outpth}")
 
         (t, n, _) = m.traj['X'].shape
 
@@ -124,12 +125,11 @@ def plot_stats(path: str, model: str) -> None:
         stats |= process_space( m.traj['X'], m.l, m.bounds)
         stats |= process_angles(m.traj['A'], m.params['v'])
 
-        pth = os.path.join(path, m.string)
         title = f"{m.title} {m.subtitle}"
 
-        plots_trajectories(m, stats, pth)
-        plots_model_stats(m.string, title, stats, pth)
-        plots_autocorrels(m.string, title, stats, 20, pth)
+        plots_trajectories(m, stats, outpth)
+        plots_model_stats(m.string, title, stats, outpth)
+        plots_autocorrels(m.string, title, stats, 20, outpth)
 
 
 if __name__ == "__main__":

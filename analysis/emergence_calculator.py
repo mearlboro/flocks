@@ -100,5 +100,5 @@ if __name__ == '__main__':
     X = [np.random.randn(1000, 2) for _ in range(10)]
     V = np.random.randn(1000, 2)
 
-    print('Emergence for random data: %f'%emergence_psi(X, V))
+    print(f'Emergence for random data: {emergence_psi(X, V)}')
 

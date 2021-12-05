@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Tuple
 labels = {
     'avg_abs_vel': '$\\frac{1}{N v}  \\sum_i^N \mathbf{v}_{X_i}$',
     'std_angle': '$\\sigma_{\\theta}$',
-    'std_dist_cmass': '$\\sigma_{X_M}$',
+    'std_dist_cmass': '$\\sigma_{d(X_i, X_M)}$',
     'psi_cmass': '$\\Psi^{(1)}_{(t,t+1)}(X_M)$',
     'psi_whole': '$I(X_M(t);X_M(t+1))$',
     'psi_parts': '$\\sum_{i=1}^N I(X_i(t); X_M(t+1))$'
@@ -136,7 +136,7 @@ def aggregate_model_stats(
 markers = itertools.cycle(('.', '+', '^', 'o', '*'))
 
 def plot_2param(
-        name: str, stats: Dict[str, Any],
+        name: str, filename: str, stats: Dict[str, Any],
         param: List[str], path: str, stats_to_plot: List[str] = to_plot
     ):
     if len(param) != 2:
@@ -151,7 +151,7 @@ def plot_2param(
             plt.errorbar(xval, yval, yerr=yerr,
                 linestyle = '--', marker = next(markers), c = np.random.rand(3,))
             plt.title(titles[stat] + f" vs $\\{param[1]}$")
-            plt.suptitle(name + f" $\\{param[0]}$ = {p0}", fontsize = 20)
+            plt.suptitle(name + f" ($\\{param[0]}$ = {p0})", fontsize = 20)
             plt.ylabel(labels[stat], fontsize = 14)
 
             if 'psi_cmass' in stat:
@@ -167,11 +167,11 @@ def plot_2param(
                 plt.legend()
 
             plt.xlabel('$\\' + f'{param[1]}$', fontsize = 14)
-            plt.savefig(f"{path}/{name}_{param[0]}{p0}_{param[1]}_vs_{stat}.png")
+            plt.savefig(f"{path}/{filename}_{param[0]}{p0}_{param[1]}_vs_{stat}.png")
             plt.cla()
 
 
-def plot_3param(name: str, stats: Dict[str, Any], param: List[str], path: str):
+def plot_3param(name: str, filename:str, stats: Dict[str, Any], param: List[str], path: str):
 
     if len(param) != 3:
         raise ValueError(f'Can only plot aggregate plot with 3 params, but {param} given')
@@ -185,17 +185,17 @@ def plot_3param(name: str, stats: Dict[str, Any], param: List[str], path: str):
             groups = list(set([ p2 for p1 in xval for p2 in stats[p0][p1].keys() ]))
             for p2 in groups:
                 yval = [ np.mean(stats[p0][p1][p2][stat]) for p1 in xval
-                                                         if p2 in stats[p0][p1].keys()]
+                                                          if p2 in stats[p0][p1].keys()]
 
                 plt.plot(xval, yval, label = f'{param[2]} = {p2}',
                     linestyle = '--', marker = next(markers), c = np.random.rand(3,))
 
             plt.title(titles[stat] + f" vs $\\{param[1]}$")
-            plt.suptitle(name + f" $\\{param[0]}$ = {p0}", fontsize = 20)
+            plt.suptitle(name + f" ($\\{param[0]}$ = {p0})", fontsize = 20)
             plt.xlabel('$\\eta$',   fontsize = 14)
             plt.ylabel(labels[stat], fontsize = 14)
             plt.legend()
-            plt.savefig(f"{path}/{name}_{param[0]}{p0}_{param[1]}_{param[2]}_vs_{stat}.png")
+            plt.savefig(f"{path}/{filename}_{param[0]}{p0}_{param[1]}_{param[2]}_vs_{stat}.png")
             plt.cla()
 
 
@@ -226,11 +226,13 @@ def plot_results(path: str, out: str, model: str, aggregate: List[str]) -> None:
 
     stats  = aggregate_model_stats(models, aggregate, list(titles.keys()), 0)
 
+    pltitle = models[list(models.keys())[0]].title
+
     plt.rcParams['figure.figsize'] = [10, 7]
     if len(aggregate) == 2:
-        plot_2param(model, stats, aggregate, out)
+        plot_2param(pltitle, model, stats, aggregate, out)
     if len(aggregate) == 3:
-        plot_3param(model, stats, aggregate, out)
+        plot_3param(pltitle, model, stats, aggregate, out)
 
 
 if __name__ == "__main__":
