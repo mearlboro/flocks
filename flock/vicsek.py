@@ -99,9 +99,9 @@ class VicsekModel(FlockModel):
         """
         indexes = neighbours(i, self.X, self.r, self.neighbours)
         Aavg = average_angles(self.A[indexes])
-        dE = np.random.uniform(-self.e/2, self.e/2)
+        dE = np.random.uniform(-self.e / 2, self.e / 2)
 
-        return Aavg + dE
+        return ang_mod(Aavg + dE)
 
 
     def __new_X(self, i: int) -> Tuple[np.ndarray, float]:

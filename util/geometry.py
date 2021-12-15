@@ -22,6 +22,27 @@ class EnumNeighbours(Enum):
     TOPOLOGICAL = 1
 
 
+def ang_mod(a: float) -> float:
+    """
+    Given an angle in radians, if it is larger than pi or smaller than -pi
+    subtract or add the required rotations around the circle
+
+    Params
+    ------
+    a
+        float representing angle in radians
+
+    Returns
+    ------
+    float representing angle in radians in interval (-pi, pi]
+    """
+    if a == -pi:
+        a = pi
+    if a > pi or a < -pi:
+        a = fmod(a, pi)
+    return a
+
+
 def vec_to_ang(v: np.ndarray) -> float:
     """
     Given a 2D vector return its angle using arctangent function
@@ -45,7 +66,7 @@ def vec_to_ang(v: np.ndarray) -> float:
 def ang_to_vec(a: float) -> np.ndarray:
     """
     Given an angle returns a unit vector with origin in (0,0) at that angle.
-    Module pi is applied, angle might be is greater than pi or smaller than -pi
+    Module pi is applied if the angle is greater than pi or smaller than -pi
 
     Params
     ------
@@ -57,15 +78,10 @@ def ang_to_vec(a: float) -> np.ndarray:
     numpy array of shape (2,) with the 2D coordinates of the vector's tip
     """
 
-    if a == -pi:
-        a = pi
-    if a > pi or a < -pi:
-        a = fmod(a, pi)
+    a = ang_mod(a)
+    x = np.array([cos(a), sin(a)])
 
-    x = np.array([0, 0])
-    y = np.array([cos(a), sin(a)])
-
-    return (y - x) / np.linalg.norm(y - x, 2)
+    return x / np.linalg.norm(x, 2)
 
 
 def average_angles(A: np.ndarray) -> float:
