@@ -70,10 +70,14 @@ test_scalar_e(29, average_angles(A),
 l = 10
 X  = np.array([[1, 1], [9,  9], [1, 2]])
 X1 = np.array([[1, 1], [-1,-1], [1, 2]])
+X2 = np.array([[0, 0], [0, 9.9], [9.9, 0], [9.9, 9.9]])
 
-test_vector_e(30, centre_of_mass(X, l, EnumBounds.PERIODIC), centre_of_mass(X1, l, EnumBounds.PERIODIC))
-test_vector_e(31, periodic_diff(X[0], X[1], l), np.array([2,  2]))
-test_vector_e(32, periodic_diff(X[0], X[2], l), np.array([0, -1]))
-test_vector_e(33, periodic_diff(X[2], X[0], l), np.array([0,  1]))
-test_scalar_e(34, periodic_diff(X[0], X[1], l, True), 2 * np.sqrt(2))
-test_scalar_e(35, periodic_diff(X[0], X[2], l, True), 1)
+test_vector_e(30, centre_of_mass(X,  l, EnumBounds.PERIODIC), centre_of_mass(X1, l, EnumBounds.PERIODIC))
+test_vector_e(31, centre_of_mass(X2, l, EnumBounds.PERIODIC),   [9.95, 9.95])
+test_vector_e(32, centre_of_mass(X2, l, EnumBounds.REFLECTIVE), [4.95, 4.95])
+
+test_vector_e(33, periodic_diff(X[0], X[1], l), np.array([2,  2]))
+test_vector_e(34, periodic_diff(X[0], X[2], l), np.array([0, -1]))
+test_vector_e(35, periodic_diff(X[2], X[0], l), np.array([0,  1]))
+test_scalar_e(36, periodic_diff(X[0], X[1], l, True), 2 * np.sqrt(2))
+test_scalar_e(37, periodic_diff(X[0], X[2], l, True), 1)
