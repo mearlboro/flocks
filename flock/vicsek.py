@@ -29,15 +29,17 @@ class VicsekModel(FlockModel):
         Ai(t + i)  = <A(t)>(i, r) + dE
 
     For a detailed description of default parameter choices and initial conditions,
-    Vicsek et al. (1995). "Novel Type of Phase Transition in a System of Self
-    Driven Particles". Physical Review Letters. 75 (6): 1226–1229.
-    https://arxiv.org/abs/cond-mat/0611743
+    [1] Vicsek et al. (1995). "Novel Type of Phase Transition in a System of Self
+        Driven Particles". Physical Review Letters. 75 (6): 1226–1229.
+        https://arxiv.org/abs/cond-mat/0611743
     """
 
     def __init__(self,
                  n: int, l: float,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
-                 e: float, v: float = 0.3, r: float = 1, dt: float = 1) -> None:
+                 e: float, v: float = 0.3, r: float = 1,
+                 dt: float = 1
+        ) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
         X for the N particles, and random angle array A for the angle of their
@@ -49,9 +51,6 @@ class VicsekModel(FlockModel):
             number of particles in the system
         l
             continuous space is LxL in size, with periodic boundaries
-        e
-            perturbation. Noise dE added in each evolution step is uniform
-            distributed in [-E/2, E/2]
         bounds
             enum value to specify whether particles wrap around boundaries
             (PERIODIC) or bounce off them (REFLECTIVE)
@@ -59,6 +58,9 @@ class VicsekModel(FlockModel):
             enum value to whecify whether neighbourd are chosen if they are in a
             certain radius r from current particle (METRIC) or in the r closest
             neighbours (TOPOLOGICAl)
+        e
+            perturbation. Noise dE added in each evolution step is uniform
+            distributed in [-E/2, E/2]
         v  = 0.3
             absolute velocity of each particle
         r  = 1

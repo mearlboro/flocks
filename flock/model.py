@@ -68,8 +68,8 @@ class FlockModel:
         # and we also typeset a figure title and subtitle
         self.string   = f"{name}_{bounds_str}_{neighbours_str}_{'_'.join(params_strs)}"
         self.title    = f"{name} model, {bounds_str} bounds, {neighbours_str} neighbours"
-        self.subtitle = ', '.join([ f'${p}$ = {v}'
-                                    if len(p) == 1 else f'$\\{p}$ = {v}'
+        self.subtitle = ', '.join([ f'${p}$ = {v}' if len(p) not in range(3, 7)
+                                    else f'$\\{p}$ = {v}'
                                     for p,v in params.items() ])
 
         # initialise particle positions spread uniformly at random

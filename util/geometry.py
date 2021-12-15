@@ -42,28 +42,28 @@ def vec_to_ang(v: np.ndarray) -> float:
     return atan2(v[1], v[0])
 
 
-def ang_to_vec(theta: float) -> np.ndarray:
+def ang_to_vec(a: float) -> np.ndarray:
     """
     Given an angle returns a unit vector with origin in (0,0) at that angle.
     Module pi is applied, angle might be is greater than pi or smaller than -pi
 
     Params
     ------
-    theta
-        float number, should be in interval [-pi, pi]
+    a
+        float number representing angle, should be in interval [-pi, pi]
 
     Returns
     ------
     numpy array of shape (2,) with the 2D coordinates of the vector's tip
     """
 
-    if theta == -pi:
-        theta = pi
-    if theta > pi or theta < -pi:
-        theta = fmod(theta, pi)
+    if a == -pi:
+        a = pi
+    if a > pi or a < -pi:
+        a = fmod(a, pi)
 
     x = np.array([0, 0])
-    y = np.array([cos(theta), sin(theta)])
+    y = np.array([cos(a), sin(a)])
 
     return (y - x) / np.linalg.norm(y - x, 2)
 
@@ -95,7 +95,7 @@ def sum_vec(A: List[float], v: float) -> np.ndarray:
 
     Params
     ------
-    thetas
+    A
         list of floats representing angles in interval [-pi, pi]
     v
         absolute vel

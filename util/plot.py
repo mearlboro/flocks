@@ -34,7 +34,28 @@ def plot_particle(X: np.ndarray) -> None:
     return
 
 
-def plot_vector(X: np.ndarray, a: float, v: float) -> None:
+def plot_vector(X: np.ndarray, V: np.ndarray) -> None:
+    """
+    Plot particle's vector of velocity in its corresponding position with arrow
+    at the end using quiver style plot
+
+    Params
+    ------
+    X
+        2D spatial coordinates of point
+    a
+        2D vector for the velocity of particle
+    """
+    ( x,  y) = X
+    (vx, vy) = V
+
+    # to make them in arrow shape, make headlength and headaxislenght non-zero
+    plt.quiver([x], [y], [vx], [vy],
+               units='width', angles='xy', scale_units='xy', scale = 1,
+               headaxislength=2, headlength=2, width=.005, color='w')
+    return
+
+def plot_vector_ang(X: np.ndarray, a: float, v: float) -> None:
     """
     Plot particle's vector of velocity in its corresponding position with arrow
     at the end using quiver style plot
@@ -104,7 +125,7 @@ def plot_trajectory(
 
 
 def plot_state_vectors(
-        t: int, X: np.ndarray, A: np.ndarray, v: float, l: float,
+        t: int, X: np.ndarray, V: np.ndarray, v: float, l: float,
         title: str, subtitle: str, path: str,
         sumvec: bool = False, save: bool = True, show: bool = False
     ) -> None:
@@ -116,11 +137,12 @@ def plot_state_vectors(
     t
         time unit of the simulation, to be used as filename for generated image
     X
-        numpy array of shape (N,2), containing spatial coordinates for N points
-    A
-        numpy array of shape (N,1), containing angular velocities for N points
+        np array of shape (N,2), containing spatial coordinates for N points
+    V
+        v != 0 : np array of shape (N,1), with angular velocities for N points
+        v == 0 : np array of shape (N,2), containing vector velocities for N points
     v
-        absolute velocity of all particles
+        absolute velocity of particles, or 0 if velocity vectors are given in A
     l
         height and width of the system
     title
@@ -140,8 +162,12 @@ def plot_state_vectors(
     (n,_) = X.shape
 
     prepare_state_plot(l)
-    for i in range(n):
-        plot_vector(X[i], A[i], v)
+    if v:
+        for i in range(n):
+            plot_vector_ang(X[i], V[i], v)
+    else:
+        for i in range(n):
+            plot_vector(X[i], V[i])
 
     if sumvec:
         S = sum_vec(A, v) / n / v
