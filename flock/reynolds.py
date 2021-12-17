@@ -31,7 +31,7 @@ class ReynoldsModel(FlockModel):
     where each of the three rules is regulated by scalar params a1, a2, a3.
 
     In the Reynolds model the neighbourhood is always metric and ignores certain
-    angles aka (simulated perception). In this simplified version we use a
+    angles (a.k.a. simulated perception). In this simplified version we use a
     convention from the Vicsek model, where metric neighbours are chosen with a
     parameter r that controls the range of the neighbourhood.
 
@@ -88,18 +88,17 @@ class ReynoldsModel(FlockModel):
 
         # initialise boid velocities with uniform random angles and speed
         angles = np.random.uniform(-np.pi, np.pi, size = (n, 1))
-        self.V = np.array([ ang_to_vec(a) * np.random.uniform(0, 1)
-                            for a in angles ])
+        self.V = np.array([ ang_to_vec(a) for a in angles ])
 
         # initalise a generic flocking model and uniform positions of boids
-        params = { 'alignment': a1, 'avoidance': a2, 'aggregate': a3, 'r': r }
+        params = { 'avoidance': a1, 'alignment': a2, 'aggregate': a3, 'r': r }
         super().__init__('Reynolds', n, l, bounds, neighbours, dt, params)
 
 
     def __avoidance(self, i: int, indexes: List[int]) -> np.ndarray:
         """
         Ensure boids don't collide by subtracting the displacement of each nearby
-        boid multiplied by the avoidance parameter.
+        boid from the position of the current one multiplied by avoidance param.
 
         As per the original model by Reynolds, we assume avoidance is static
         (based on the relative position only).
@@ -115,16 +114,19 @@ class ReynoldsModel(FlockModel):
         ------
         np.ndarray of shape (D,)
         """
-        disp = sum(relative_positions(self.X[indexes], self.X[i], self.l, self.bounds))
+        xs = - relative_positions(self.X[indexes], self.X[i], self.l, self.bounds)
+        xs = [ x / np.linalg.norm(x)**2 for x in xs ]
+        x  = sum(xs)
+        x  = x / np.linalg.norm(x)
 
-        return -disp * self.a1
+        return x * self.a1
 
 
     def __alignment(self, i: int, indexes: List[int]) -> np.ndarray:
         """
         Ensure boids match flight direction by adding the perceived velocity:
-        from the velocity of i we subtract the average velocity of each nearby
-        boid, and multiplby the alignment parameter.
+        from the mean velocity of neighbours we subtract the velocity of i and
+        multiplby by the alignment parameter.
 
         As per the original model by Reynolds, we assume alignment is dynamic (works
         on the velocity vector ignoring position).
@@ -140,9 +142,11 @@ class ReynoldsModel(FlockModel):
         ------
         np.ndarray of shape (D,)
         """
-        vel = np.mean(self.X[indexes], axis = 0)
+        v = np.mean(self.V[indexes], axis = 0)
+        v = v - self.V[i]
+        v = v / np.linalg.norm(v)
 
-        return vel * self.a2
+        return v * self.a2
 
 
     def __aggregate(self, i: int, indexes: List[int]) -> np.ndarray:
@@ -162,9 +166,11 @@ class ReynoldsModel(FlockModel):
         ------
         np.ndarray of shape (D,)
         """
-        cmass = centre_of_mass(self.X[indexes], self.l, self.bounds)
+        c = centre_of_mass(self.X[indexes], self.l, self.bounds)
+        x = - relative_positions(self.X[i], c, self.l, self.bounds)[0]
+        x = x / np.linalg.norm(x)
 
-        return cmass * self.a3
+        return x * self.a3
 
 
 
@@ -197,8 +203,9 @@ class ReynoldsModel(FlockModel):
             v2 = self.__alignment(i, indexes)
             v3 = self.__aggregate(i, indexes)
 
-            # find new velocity
+            # compute new velocity and normalise
             Vi += v1 + v2 + v3
+            Vi  = Vi / np.linalg.norm(Vi, 2)
 
         Xi = self.X[i] + Vi * self.dt
 

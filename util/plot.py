@@ -15,8 +15,9 @@ def prepare_state_plot(l: float) -> None:
     plt.style.use("dark_background")
     frame = plt.gca()
     frame.set_aspect("equal")
-    frame.axes.get_xaxis().set_ticks(range(int(l)+1))
-    frame.axes.get_yaxis().set_ticks(range(int(l)+1))
+    if l < 20:
+        frame.axes.get_xaxis().set_ticks(range(int(l)+1))
+        frame.axes.get_yaxis().set_ticks(range(int(l)+1))
     return
 
 
