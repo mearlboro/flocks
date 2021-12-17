@@ -15,16 +15,16 @@ from typing import Any, Dict, List, Tuple
 
 
 labels = {
-    'avg_abs_vel': '$\\frac{1}{N v}  \\sum_i^N \mathbf{v}_{X_i}$',
-    'std_angle': '$\\sigma_{\\theta}$',
+    #'avg_abs_vel': '$\\frac{1}{N v}  \\sum_i^N \mathbf{v}_{X_i}$',
+    #'std_angle': '$\\sigma_{\\theta}$',
     'std_dist_cmass': '$\\sigma_{d(X_i, X_M)}$',
     'psi_cmass': '$\\Psi^{(1)}_{(t,t+1)}(X_M)$',
     'psi_whole': '$I(X_M(t);X_M(t+1))$',
     'psi_parts': '$\\sum_{i=1}^N I(X_i(t); X_M(t+1))$'
 }
 titles = {
-    'avg_abs_vel': 'Absolute average normalised velocity',
-    'std_angle': 'Standard deviation of particle direction',
+    #'avg_abs_vel': 'Absolute average normalised velocity',
+    #'std_angle': 'Standard deviation of particle direction',
     'std_dist_cmass': 'Standard deviation of distance from centre of mass',
     'psi_cmass': 'Emergence $\\Psi$ for centre of mass',
     'psi_whole': 'Self-predictability of the center of mass',
@@ -115,7 +115,7 @@ def aggregate_model_stats(
             l = np.sqrt(m.params['rho'] * n)
 
             s  = process_space( m.traj['X'][skip:], l, m.bounds)
-            s |= process_angles(m.traj['A'][skip:], m.params['v'])
+            #s |= process_angles(m.traj['A'][skip:], m.params['v'])
             (psi, whole, parts) = em.emergence_psi(em.format(m.traj['X'][skip:]), s['cmass'])
             s |= { 'psi_cmass': psi, 'psi_whole': whole, 'psi_parts': parts }
 
@@ -145,13 +145,13 @@ def plot_2param(
 
     for stat in titles.keys():
         for p0 in stats.keys():
-            xval = [ p1 for p1 in stats[p0].keys() ]
+            xval = [ p1 for p1 in sorted(stats[p0].keys()) ]
             yval = [ stats[p0][p1][f'{stat}_mean'] for p1 in xval ]
             yerr = [ stats[p0][p1][f'{stat}_std']  for p1 in xval ]
             plt.errorbar(xval, yval, yerr=yerr,
                 linestyle = '--', marker = next(markers), c = np.random.rand(3,))
-            plt.title(titles[stat] + f" vs $\\{param[1]}$")
-            plt.suptitle(name + f" ($\\{param[0]}$ = {p0})", fontsize = 20)
+            plt.title(titles[stat] + f" vs ${param[1]}$")
+            plt.suptitle(name + f" (${param[0]}$ = {p0})", fontsize = 20)
             plt.ylabel(labels[stat], fontsize = 14)
 
             if 'psi_cmass' in stat:
@@ -166,7 +166,7 @@ def plot_2param(
                     linestyle = '--', marker = next(markers), c = np.random.rand(3,))
                 plt.legend()
 
-            plt.xlabel('$\\' + f'{param[1]}$', fontsize = 14)
+            plt.xlabel('$' + f'{param[1]}$', fontsize = 14)
             plt.savefig(f"{path}/{filename}_{param[0]}{p0}_{param[1]}_vs_{stat}.png")
             plt.cla()
 
@@ -190,8 +190,8 @@ def plot_3param(name: str, filename:str, stats: Dict[str, Any], param: List[str]
                 plt.plot(xval, yval, label = f'{param[2]} = {p2}',
                     linestyle = '--', marker = next(markers), c = np.random.rand(3,))
 
-            plt.title(titles[stat] + f" vs $\\{param[1]}$")
-            plt.suptitle(name + f" ($\\{param[0]}$ = {p0})", fontsize = 20)
+            plt.title(titles[stat] + f" vs ${param[1]}$")
+            plt.suptitle(name + f" (${param[0]}$ = {p0})", fontsize = 20)
             plt.xlabel('$\\eta$',   fontsize = 14)
             plt.ylabel(labels[stat], fontsize = 14)
             plt.legend()

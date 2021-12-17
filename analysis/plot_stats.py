@@ -7,21 +7,21 @@ import numpy.random as rn
 import os
 
 from flock.model import FlockModel
-from analysis.stats import autocorrelation, process_space, process_angles
+from analysis.stats import *
 from util.plot import plot_trajectories
 
 from typing import Any, Dict, List, Tuple
 
 
 labels = {
-    'avg_abs_vel': '$\\frac{1}{N v}  \\sum_i^N \mathbf{v}_{X_i}$',
-    'std_angle': '$\\sigma_{\\theta}$',
+    #'avg_abs_vel': '$\\frac{1}{N v}  \\sum_i^N \mathbf{v}_{X_i}$',
+    #'std_angle': '$\\sigma_{\\theta}$',
     'avg_dist_cmass': '$\\mathbb{E}[|X_i, X_M|]$',
     'std_dist_cmass': '$\\sigma_{|X_i, X_M|}$',
 }
 titles = {
-    'avg_abs_vel': 'Absolute average normalised velocity ',
-    'std_angle': 'Standard deviation of particle direction ',
+    #'avg_abs_vel': 'Absolute average normalised velocity ',
+    #'std_angle': 'Standard deviation of particle direction ',
     'avg_dist_cmass': 'Average distance from centre of mass ',
     'std_dist_cmass': 'Standard deviation of distance from centre of mass ',
 }
@@ -123,13 +123,13 @@ def plot_stats(path: str, model: str, out: str) -> None:
 
         stats   = { 't': t }
         stats |= process_space( m.traj['X'], m.l, m.bounds)
-        stats |= process_angles(m.traj['A'], m.params['v'])
+        #stats |= process_angles(m.traj['A'])
 
         title = f"{m.title} {m.subtitle}"
 
         plots_trajectories(m, stats, outpth)
         plots_model_stats(m.string, title, stats, outpth)
-        plots_autocorrels(m.string, title, stats, 20, outpth)
+        plots_autocorrels(m.string, title, stats, 100, outpth)
 
 
 if __name__ == "__main__":
