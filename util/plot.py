@@ -126,7 +126,7 @@ def plot_trajectory(
 
 
 def plot_state_vectors(
-        t: int, X: np.ndarray, V: np.ndarray, v: float, l: float,
+        t: int, X: np.ndarray, A: np.ndarray, V: np.ndarray, l: float,
         title: str, subtitle: str, path: str,
         sumvec: bool = False, save: bool = True, show: bool = False
     ) -> None:
@@ -138,12 +138,11 @@ def plot_state_vectors(
     t
         time unit of the simulation, to be used as filename for generated image
     X
-        np array of shape (N,2), containing spatial coordinates for N points
+        np array of shape (N ,2), containing spatial coordinates for N points
+    A
+        np array of shape (N, 2), containing angle of velocity for N points
     V
-        v != 0 : np array of shape (N,1), with angular velocities for N points
-        v == 0 : np array of shape (N,2), containing vector velocities for N points
-    v
-        absolute velocity of particles, or 0 if velocity vectors are given in A
+        np array of shape (N, 2), containing absolute velocity for N points
     l
         height and width of the system
     title
@@ -163,15 +162,11 @@ def plot_state_vectors(
     (n,_) = X.shape
 
     prepare_state_plot(l)
-    if v:
-        for i in range(n):
-            plot_vector_ang(X[i], V[i], v)
-    else:
-        for i in range(n):
-            plot_vector(X[i], V[i])
+    for i in range(n):
+        plot_vector_ang(X[i], A[i], V[i])
 
     if sumvec:
-        S = sum_vec(A, v) / n / v
+        S = sum_vec_ang(A, V) / n
         plt.plot([l/2, S[0] + l/2], [l/2, S[1] + l/2], 'yellow', linewidth=3)
 
     plt.xlabel(t)

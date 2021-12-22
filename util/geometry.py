@@ -1,7 +1,7 @@
 #!/usr/bin/python
 from enum import Enum
 import numpy as np
-from math import atan2, pi, fmod, sin, cos, sqrt
+from math import pi, fmod, sin, cos, sqrt
 
 from typing import List, Tuple
 
@@ -50,9 +50,9 @@ def vec_to_ang(v: np.ndarray) -> float:
     Params
     ------
     v
-        np.array of shape (1, 2) or list of floats. The first param to atan2
-        must be the vertical component on the y-axis as per atan2 implementation
-        to produce the consistent quadrant
+        np.array of shape (1, 2) or list of floats. The first param to arctan2
+        must be the vertical component on the y-axis to produce the consistent
+        quadrant
         cf. https://en.wikipedia.org/wiki/Atan2
 
     Return
@@ -60,7 +60,7 @@ def vec_to_ang(v: np.ndarray) -> float:
     angle as float number in interval [-pi, pi]
     """
 
-    return atan2(v[1], v[0])
+    return np.arctan2(v[1], v[0])
 
 
 def ang_to_vec(a: float) -> np.ndarray:
@@ -84,6 +84,31 @@ def ang_to_vec(a: float) -> np.ndarray:
     return x / np.linalg.norm(x, 2)
 
 
+def bearing_to(a: float, x: np.ndarray) -> float:
+    """
+    Compute the angular difference between an angle a at the origin and the angle
+    formed by a vector from origin to the point x.
+
+    This angle is referred to as 'bearing' and they are usually measured in a
+    clockwise direction.
+
+    Params
+    ------
+    a
+        float in range (-pi, pi] representing angle in radians
+    x
+        np.array of size (D,) for a point in D-dimensional space
+
+    Returns
+    ------
+    angle in radians
+    """
+    ax = np.arctan2(x[1], x[0])
+    d  = ang_mod(ax - a + np.pi) - np.pi
+
+    return d
+
+
 def average_angles(A: np.ndarray) -> float:
     """
     Estimates average angle of all p angles in A taking into account possible
@@ -105,23 +130,27 @@ def average_angles(A: np.ndarray) -> float:
     return np.arctan2(np.sum(np.sin(A)), np.sum(np.cos(A)))
 
 
-def sum_vec(A: List[float], v: float) -> np.ndarray:
+def sum_vec_ang(A: List[float], V: List[float]) -> np.ndarray:
     """
-    Sum given vectors with angle stored in A and absolute velocity v
+    Sum given vectors with angle stored in A and absolute velocities in V
 
     Params
     ------
     A
         list of floats representing angles in interval [-pi, pi]
-    v
-        absolute vel
+    V
+        list of floats representing absolute velocities
 
     Returns
     ------
     numpy array of shape (2,) with the 2D coordinates of the sum vector's tip
     """
-    vecs = np.array([ ang_to_vec(a) * v for a in A ])
-    sumv = np.array([ sum(vecs[:, 0]), sum(vecs[:, 1]) ])
+    if (len(A) != len(V)):
+        raise ValueError("Each angle must have a corresponding speed")
+        exit(0)
+
+    vecs = np.array([ ang_to_vec(a) * v for a,v in zip(A, V) ])
+    sumv = np.sum(vecs, axis = 0)
 
     return sumv
 
