@@ -59,9 +59,10 @@ test_scalar_e(27, average_angles([ [2], [-2] ]),   np.pi)
 # test angle sums and averages
 n = 10
 v = 0.1
+V = np.ones((n, 1)) * v
 A = np.random.uniform(-np.pi, np.pi, size=(n, 1))
 
-test_vector_e(28, sum_vec_ang(A, v),
+test_vector_e(28, sum_vec_ang(A, V),
                   np.mean([ ang_to_vec(a) * v for a in A], axis = 0) * n )
 test_scalar_e(29, average_angles(A),
                   vec_to_ang(np.mean([ ang_to_vec(a) * v for a in A], axis = 0)))
