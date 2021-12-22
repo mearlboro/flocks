@@ -31,6 +31,7 @@ class ReynoldsModel(FlockModel):
     where the three rules, using the scalar model params a1, a2, a3, regulate the
     behaviour of each boid with respect to its neighbours' proximity, direction,
     and centre of mass.
+    cf. https://www.red3d.com/cwr/steer/gdc99/
 
     In the Reynolds model the neighbourhood is always metric and ignores certain
     angles at the back (a.k.a. simulated perception). In this simplified version

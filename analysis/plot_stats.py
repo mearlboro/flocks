@@ -14,14 +14,14 @@ from typing import Any, Dict, List, Tuple
 
 
 labels = {
-    #'avg_abs_vel': '$\\frac{1}{N v}  \\sum_i^N \mathbf{v}_{X_i}$',
-    #'std_angle': '$\\sigma_{\\theta}$',
+    'avg_abs_vel': '$\\frac{1}{N v}  \\sum_i^N \mathbf{v}_{X_i}$',
+    'std_angle': '$\\sigma_{\\theta}$',
     'avg_dist_cmass': '$\\mathbb{E}[|X_i, X_M|]$',
     'std_dist_cmass': '$\\sigma_{|X_i, X_M|}$',
 }
 titles = {
-    #'avg_abs_vel': 'Absolute average normalised velocity ',
-    #'std_angle': 'Standard deviation of particle direction ',
+    'avg_abs_vel': 'Absolute average normalised velocity ',
+    'std_angle': 'Standard deviation of particle direction ',
     'avg_dist_cmass': 'Average distance from centre of mass ',
     'std_dist_cmass': 'Standard deviation of distance from centre of mass ',
 }
@@ -123,7 +123,7 @@ def plot_stats(path: str, model: str, out: str) -> None:
 
         stats   = { 't': t }
         stats |= process_space( m.traj['X'], m.l, m.bounds)
-        #stats |= process_angles(m.traj['A'])
+        stats |= process_angles(m.traj['A'])
 
         title = f"{m.title} {m.subtitle}"
 

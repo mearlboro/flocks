@@ -15,16 +15,16 @@ from typing import Any, Dict, List, Tuple
 
 
 labels = {
-    #'avg_abs_vel': '$\\frac{1}{N v}  \\sum_i^N \mathbf{v}_{X_i}$',
-    #'std_angle': '$\\sigma_{\\theta}$',
+    'avg_abs_vel': '$\\frac{1}{N v}  \\sum_i^N \mathbf{v}_{X_i}$',
+    'std_angle': '$\\sigma_{\\theta}$',
     'std_dist_cmass': '$\\sigma_{d(X_i, X_M)}$',
     'psi_cmass': '$\\Psi^{(1)}_{(t,t+1)}(X_M)$',
     'psi_whole': '$I(X_M(t);X_M(t+1))$',
     'psi_parts': '$\\sum_{i=1}^N I(X_i(t); X_M(t+1))$'
 }
 titles = {
-    #'avg_abs_vel': 'Absolute average normalised velocity',
-    #'std_angle': 'Standard deviation of particle direction',
+    'avg_abs_vel': 'Absolute average normalised velocity',
+    'std_angle': 'Standard deviation of particle direction',
     'std_dist_cmass': 'Standard deviation of distance from centre of mass',
     'psi_cmass': 'Emergence $\\Psi$ for centre of mass',
     'psi_whole': 'Self-predictability of the center of mass',
@@ -90,6 +90,9 @@ def aggregate_model_stats(
     # repeated experiments have '-' in name/path
     batch_names = sorted([ m for m in models.keys() if '-' not in m ])
 
+
+    # TODO: Burn-in to eliminate transient states, sim up to t=500 and then analyse
+
     stats = dict()
     for batch in batch_names:
         exp_in_batch = sorted([ m for m in models.keys() if batch in m ])
@@ -115,7 +118,10 @@ def aggregate_model_stats(
             l = np.sqrt(m.params['rho'] * n)
 
             s  = process_space( m.traj['X'][skip:], l, m.bounds)
-            #s |= process_angles(m.traj['A'][skip:], m.params['v'])
+            if 'v' in m.params.keys():
+                s |= process_angles(m.traj['A'][skip:], v = m.params['v'])
+            else:
+                s |= process_angles(m.traj['A'][skip:], Vt = m.traj['V'][skip:])
             (psi, whole, parts) = em.emergence_psi(em.format(m.traj['X'][skip:]), s['cmass'])
             s |= { 'psi_cmass': psi, 'psi_whole': whole, 'psi_parts': parts }
 
@@ -143,7 +149,7 @@ def plot_2param(
         raise ValueError(f'Can only plot aggregate plot with 2 params, but {param} given')
         exit(0)
 
-    for stat in titles.keys():
+    for stat in to_plot:
         for p0 in stats.keys():
             xval = [ p1 for p1 in sorted(stats[p0].keys()) ]
             yval = [ stats[p0][p1][f'{stat}_mean'] for p1 in xval ]

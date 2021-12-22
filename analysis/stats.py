@@ -69,19 +69,22 @@ def process_space(
     return m
 
 
-def process_angles(At: np.ndarray, v: float = 0.1) -> Dict[str, np.ndarray]:
+def process_angles(At: np.ndarray, Vt: np.ndarray = None, v: float = 1.0) -> Dict[str, np.ndarray]:
     """
-    Given the angles of each velocity vector in the system, return stats and
-    related candidate macroscopic features
+    Given the angles and speeds of each velocity vector in the system, return
+    stats and related candidate macroscopic features
     (absolute average normalised velocity, average angle etc)
+
+    The average absolute velocity is used as order parameter by Vicsek and is
+    normalised by v. In a model with individual speeds each individual speed is
+    used with no normalisation.
 
     Params
     ------
-    At
+    At : numpy array of shape (T, N)
         angle of velocities for all the system variables accross all time points
-        as numpy array of shape (T, N)
-    v
-        absolute velocity of each particle
+    At : numpy array of shape (T, N)
+        absolute velocities for all the system variables accross all time points
 
     Returns
     ------
@@ -95,7 +98,13 @@ def process_angles(At: np.ndarray, v: float = 0.1) -> Dict[str, np.ndarray]:
 
     m = dict()
 
-    vel     = np.array([ [ ang_to_vec(a) * v for a in A] for A in At ])
+    if Vt is not None:
+        vel = np.array([ [ ang_to_vec(a) * v
+                           for a, v in zip(A, V)]
+                           for A, V in zip(At, Vt) ])
+    else:
+        vel = np.array([ [ ang_to_vec(a) * v for a in A ] for A in At ])
+
     avg_vel = np.mean(vel, axis = 1)
     std_vel = np.std( vel, axis = 1)
 
