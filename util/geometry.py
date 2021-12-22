@@ -1,7 +1,7 @@
 #!/usr/bin/python
 from enum import Enum
 import numpy as np
-from math import pi, fmod, sin, cos, sqrt
+from math import atan2, pi, fmod, sin, cos, sqrt
 
 from typing import List, Tuple
 
@@ -60,7 +60,7 @@ def vec_to_ang(v: np.ndarray) -> float:
     angle as float number in interval [-pi, pi]
     """
 
-    return np.arctan2(v[1], v[0])
+    return atan2(v[1], v[0])
 
 
 def ang_to_vec(a: float) -> np.ndarray:
@@ -103,8 +103,8 @@ def bearing_to(a: float, x: np.ndarray) -> float:
     ------
     angle in radians
     """
-    ax = np.arctan2(x[1], x[0])
-    d  = ang_mod(ax - a + np.pi) - np.pi
+    ax = atan2(x[1], x[0])
+    d  = ang_mod(ax - a + pi) - pi
 
     return d
 
@@ -127,7 +127,7 @@ def average_angles(A: np.ndarray) -> float:
     ------
     average direction as a float
     """
-    return np.arctan2(np.sum(np.sin(A)), np.sum(np.cos(A)))
+    return atan2(sum(np.sin(A)), sum(np.cos(A)))
 
 
 def sum_vec_ang(A: List[float], V: List[float]) -> np.ndarray:
@@ -320,9 +320,9 @@ def periodic_mean(x: np.ndarray, L: float) -> float:
     ------
     centre of mass of all coordinates accounting for the periodic boundaries
     """
-    cmap  = x / L * 2 * np.pi - np.pi
-    cmean = np.arctan2(np.sin(cmap).mean(), np.cos(cmap).mean())
-    mean = (cmean + np.pi) / (2 * np.pi) * L
+    cmap  = x / L * 2 * pi - pi
+    cmean = atan2(np.sin(cmap).mean(), np.cos(cmap).mean())
+    mean  = (cmean + pi) / (2 * pi) * L
 
     return mean
 

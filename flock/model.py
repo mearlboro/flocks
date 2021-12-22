@@ -58,7 +58,7 @@ class FlockModel:
         neighbours_str  = neighbours.name.lower()
 
         # initialise parameters
-        rho = round(float(n) / l ** 2, 2) # density
+        rho = round(float(n) / l ** 2, 4) # density
         params['rho'] = rho
 
         self.params = params

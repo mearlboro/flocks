@@ -15,25 +15,28 @@ class ReynoldsModel(FlockModel):
     In addition to the Vicsek model, the Reynolds model includes an aggegation
     and an avoidance parameter. The version used here is a simplified version of
     Reynold's [1] similar to the ones used by Seth [2] and Rosas et al [3], with
-    boids behaving as particles with no mass, shape or dimension.
+    boids behaving as particles with no mass, shape or dimension. Each boid is
+    characterised by its coordinates, angle of flight (in radians) and scalar
+    speed.
 
-    The starting positions and velocities of boids are distributed uniformly at
-    random.
+    The position xi, yi of each boid i evolves as follows:
 
-    The position Xi of each boid i evolves as follows:
+        xi(t + dt) = xi(t) + vi * cos(Ai(t)) * dt
+        yi(t + dt) = yi(t) + vi * sin(Ai(t)) * dt
 
-        Xi(t + dt) = Xi(t) + Vi(t) dt
+    where vi is the speed of particle i and the new angle of velocity Ai(t) is:
 
-    where the velocity Vi(t) is given by:
+        Ai(t + dt) = Ai(t) + R1(i) + R2(i) + R3(i)
 
-        Vi(t + dt) = Vi(t) + R1(i) + R2(i) + R3(i)
-
-    where each of the three rules is regulated by scalar params a1, a2, a3.
+    where the three rules, using the scalar model params a1, a2, a3, regulate the
+    behaviour of each boid with respect to its neighbours' proximity, direction,
+    and centre of mass.
 
     In the Reynolds model the neighbourhood is always metric and ignores certain
-    angles (a.k.a. simulated perception). In this simplified version we use a
-    convention from the Vicsek model, where metric neighbours are chosen with a
-    parameter r that controls the range of the neighbourhood.
+    angles at the back (a.k.a. simulated perception). In this simplified version
+    we omit it and use the metric neighbourhood convention from the Vicsek model,
+    where metric neighbours are chosen with parameter r that controls the range
+    of the neighbourhood. The model can also be used with topological neigbours.
 
     [1] Reynolds CW (1987). "Flocks, Herds and Schools: A Distributed Behavioral
         Model". vol. 21. ACM. https://dl.acm.org/doi/10.1145/37402.37406
@@ -48,12 +51,13 @@ class ReynoldsModel(FlockModel):
     def __init__(self,
                  n: int, l: float,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
-                 a1: float, a2: float, a3: float, r: float = 1,
-                 dt: float = 1
+                 a1: float, a2: float, a3: float, r: float,
+                 minv: float = 3, maxv: float = 9, dt: float = 1
         ) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
-        X for the N boids, and random velocity vector array V for their velocity
+        X for the N boids. The starting positions, angles of velocity and speeds
+        of boids are initialised with unformly random values as done by Seth.
 
         Params
         ------
@@ -84,97 +88,97 @@ class ReynoldsModel(FlockModel):
         self.a1 = a1
         self.a2 = a2
         self.a3 = a3
-        self.r  = r
 
-        # initialise boid velocities with uniform random angles and speed
-        angles = np.random.uniform(-np.pi, np.pi, size = (n, 1))
-        self.V = np.array([ ang_to_vec(a) for a in angles ])
+        self.r  = r
+        self.maxv = maxv
+
+        # initialise boid angle velocities with uniform random angles
+        self.A = np.random.uniform(-np.pi, np.pi, size = n)
+
+        # initialise boid absolute speeds with uniform random values in [3,9]
+        self.V = np.random.uniform(minv, maxv, size = n)
 
         # initalise a generic flocking model and uniform positions of boids
         params = { 'avoidance': a1, 'alignment': a2, 'aggregate': a3, 'r': r }
         super().__init__('Reynolds', n, l, bounds, neighbours, dt, params)
 
 
-    def __avoidance(self, i: int, indexes: List[int]) -> np.ndarray:
+    def __avoidance(self, i: int, indexes: List[int]) -> float:
         """
-        Ensure boids don't collide by subtracting the displacement of each nearby
-        boid from the position of the current one multiplied by avoidance param.
+        Ensure boids don't collide by subtracting the displacement of nearby
+        boids, normalised and weighted by the distance between each neighbour and
+        the current boid.
 
         As per the original model by Reynolds, we assume avoidance is static
-        (based on the relative position only).
-
-        Params
-        -----
-        i
-            index i for boid to update at time t
-        indexes
-            index list not including i for all of i's neighbours
-
-        Returns
-        ------
-        np.ndarray of shape (D,)
+        (computation is based on the relative position only).
         """
         xs = - relative_positions(self.X[indexes], self.X[i], self.l, self.bounds)
         xs = [ x / np.linalg.norm(x)**2 for x in xs ]
-        x  = sum(xs)
-        x  = x / np.linalg.norm(x)
+        x  = np.sum(xs, axis = 0)
+        a  = bearing_to(self.A[i], x)
 
-        return x * self.a1
+        return a * self.a1
 
 
-    def __alignment(self, i: int, indexes: List[int]) -> np.ndarray:
+    def __alignment(self, i: int, indexes: List[int]) -> float:
         """
-        Ensure boids match flight direction by adding the perceived velocity:
+        Ensure boids match flight direction by adding the perceived velocity.
         from the mean velocity of neighbours we subtract the velocity of i and
         multiplby by the alignment parameter.
 
         As per the original model by Reynolds, we assume alignment is dynamic (works
         on the velocity vector ignoring position).
-
-        Params
-        -----
-        i
-            index i for boid to update at time t
-        indexes
-            index list not including i for all of i's neighbours
-
-        Returns
-        ------
-        np.ndarray of shape (D,)
         """
-        v = np.mean(self.V[indexes], axis = 0)
-        v = v - self.V[i]
-        v = v / np.linalg.norm(v)
+        a = average_angles(self.A[indexes])
+        a = ang_mod(a - self.A[i])
 
-        return v * self.a2
+        return a * self.a2
 
 
-    def __aggregate(self, i: int, indexes: List[int]) -> np.ndarray:
+    def __aggregate(self, i: int) -> float:
         """
-        Ensure boids fly towards the perceived centre of mass of nearby boids:
-        from the centre of mass vector we subtract the position vector of current
-        boid, and multiplby the aggregate parameter.
-
-        Params
-        -----
-        i
-            index i for boid to update at time t
-        indexes
-            index list not including i for all of i's neighbours
-
-        Returns
-        ------
-        np.ndarray of shape (D,)
+        Ensure boids fly towards the perceived centre of mass of ALL boids, i.e.
+        the centre of mass excluding itself. To calculate the steering angle,
+        the current position is subtracted from the perceived centre of mass
+        before the difference angle is computed.
         """
+        indexes = [ j for j in range(self.n) if j != i ]
         c = centre_of_mass(self.X[indexes], self.l, self.bounds)
         x = - relative_positions(self.X[i], c, self.l, self.bounds)[0]
-        x = x / np.linalg.norm(x)
+        a = bearing_to(self.A[i], x)
 
-        return x * self.a3
+        return a * self.a3
 
 
+    def __new_A(self, i: int) -> Tuple[np.ndarray, float, float]:
+        """
+        Get updated angle for particle i
 
-    def __new_X_V(self, i: int) -> Tuple[np.ndarray, float]:
+        Params
+        ------
+        i
+            index i for particle to update at time t
+
+        Returns
+        ------
+        updated angle
+        """
+        indexes = neighbours(i, self.X, self.r, self.neighbours)
+        # the current boid's velocity or posiiton is not considered
+        indexes = [ j for j in indexes if j != i ]
+
+        # update velocity angle only if there are any neighbours
+        Ai = self.A[i]
+
+        Ai += self.__aggregate(i)
+        if indexes:
+            Ai += self.__avoidance(i, indexes)
+            Ai += self.__alignment(i, indexes)
+
+        return ang_mod(Ai)
+
+
+    def __new_X_A_V(self, i: int) -> Tuple[np.ndarray, float, float]:
         """
         Get updated coordinate and angle for particle i adding new velocity to
         old coordinate
@@ -190,23 +194,18 @@ class ReynoldsModel(FlockModel):
 
         Returns
         ------
-        update velocity and position for particle i
+        update position, angle, speed for particle i
         """
-        indexes = neighbours(i, self.X, self.r, self.neighbours)
-        # the current boid's velocity or posiiton is not considered
-        indexes = [ j for j in indexes if j != i ]
+        Ai = self.__new_A(i)
 
-        # update velocity only if there are any neighbours
-        Vi = self.V[i]
-        if indexes:
-            v1 = self.__avoidance(i, indexes)
-            v2 = self.__alignment(i, indexes)
-            v3 = self.__aggregate(i, indexes)
+        # get velocity vector and normalise
+        Vi = ang_to_vec(Ai) * self.V[i]
+        v  = np.linalg.norm(Vi, 2)
+        if v > self.maxv:
+            Vi = Vi / v * self.maxv
+            v  = self.maxv
 
-            # compute new velocity and normalise
-            Vi += v1 + v2 + v3
-            Vi  = Vi / np.linalg.norm(Vi, 2)
-
+        # get position at t+1
         Xi = self.X[i] + Vi * self.dt
 
         # if it's out of bounds, correct based on simulation type
@@ -219,8 +218,9 @@ class ReynoldsModel(FlockModel):
                 (Xi, Vi) = bounds_reflect(Xi, Vi, self.l)
                 while out_of_bounds(Xi, self.l):
                     (Xi, Vi) = bounds_reflect(Xi, Vi, self.l)
+                Ai = vec_to_ang(Vi)
 
-        return (Xi, Vi)
+        return (Xi, Ai, v)
 
 
     def update(self) -> None:
@@ -233,9 +233,10 @@ class ReynoldsModel(FlockModel):
         increment counter t as a new timestep has passed
         """
 
-        X_V = [ self.__new_X_V(i) for i in range(self.n) ]
-        self.X = np.array([ X_V[i][0] for i in range(self.n) ])
-        self.V = np.array([ X_V[i][1] for i in range(self.n) ])
+        X_A_V = [ self.__new_X_A_V(i) for i in range(self.n) ]
+        self.X = np.array([ X_A_V[i][0] for i in range(self.n) ])
+        self.A = np.array([ X_A_V[i][1] for i in range(self.n) ])
+        self.V = np.array([ X_A_V[i][2] for i in range(self.n) ])
 
         self.t += 1
 
@@ -251,9 +252,9 @@ class ReynoldsModel(FlockModel):
         append variable state to corresponding file
         """
         print(f'{self.t}: saving system state to {path}/')
-        save_var(self.X[:,0], 'x1', path)
-        save_var(self.X[:,1], 'x2', path)
-        save_var(self.V[:,0], 'v1',  path)
-        save_var(self.V[:,0], 'v2',  path)
+        save_var(self.X[:, 0], 'x1', path)
+        save_var(self.X[:, 1], 'x2', path)
+        save_var(self.A, 'a',  path)
+        save_var(self.V, 'v',  path)
 
 

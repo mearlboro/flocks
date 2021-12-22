@@ -55,6 +55,7 @@ def vicsek(
         imgpath = sim.mkdir('out/img')
 
     Xt = np.zeros((t, n, 2))
+    V  = np.ones((t, n, 1)) * v
 
     while sim.t < t:
         # save current state to text
@@ -75,11 +76,11 @@ def vicsek(
             else:
                 print(f'{sim.t}: saving system state to {imgpath}/')
                 plot_state_vectors(
-                    sim.t, sim.X, sim.A, v, l, sim.title, sim.subtitle, imgpath, sumvec)
+                    sim.t, sim.X, sim.A, V, l, sim.title, sim.subtitle, imgpath, sumvec)
                 # bug when saving the first image, so save it again
                 if (sim.t == 0):
                     plot_state_vectors(
-                        sim.t, sim.X, sim.A, v, l, sim.title, sim.subtitle, imgpath, sumvec)
+                        sim.t, sim.X, sim.A, V, l, sim.title, sim.subtitle, imgpath, sumvec)
 
         sim.update()
 
@@ -89,8 +90,8 @@ def vicsek(
 @click.option('-n',  default = 10,    help='Number of particles')
 @click.option('-l',  default = 10,    help='System size')
 @click.option('-a1', default = 0.1,   help='Avoidance')
-@click.option('-a2', default = 0.1,   help='Alignment')
-@click.option('-a3', default = 0.1,   help='Aggregate')
+@click.option('-a2', default = 0.25,  help='Alignment')
+@click.option('-a3', default = 0.15,  help='Aggregate')
 @click.option('-r',  default = 1.0,   help='Radius or number of neighbours to follow')
 @click.option('--bounds', required = True,
               type = click.Choice(['PERIODIC', 'REFLECTIVE']),
@@ -119,7 +120,6 @@ def reynolds(
         python -m flock.main reynolds [flags]
 
     """
-
     # initialise model
     sim = ReynoldsModel(n, l, EnumBounds[bounds], EnumNeighbours[neighbours],
                         a1, a2, a3, r)
@@ -130,7 +130,6 @@ def reynolds(
         imgpath = sim.mkdir('out/img')
 
     Xt = np.zeros((t, n, 2))
-    Vt = np.zeros((t, n, 2))
 
     while sim.t < t:
         # save current state to text
@@ -142,7 +141,6 @@ def reynolds(
                 print(f'{sim.t}: saving system state to {imgpath}/')
                 # remember all positions so far
                 Xt[sim.t] = sim.X
-                Vt[sim.t] = sim.V
                 plot_state_particles_trajectories(
                     sim.t, Xt, l, sim.bounds, sim.title, sim.subtitle, imgpath, True)
                 # bug when saving the first image, so save it again
@@ -152,11 +150,11 @@ def reynolds(
             else:
                 print(f'{sim.t}: saving system state to {imgpath}/')
                 plot_state_vectors(
-                    sim.t, sim.X, sim.V, 0, l, sim.title, sim.subtitle, imgpath, sumvec)
+                    sim.t, sim.X, sim.A, sim.V, l, sim.title, sim.subtitle, imgpath, sumvec)
                 # bug when saving the first image, so save it again
                 if (sim.t == 0):
                     plot_state_vectors(
-                        sim.t, sim.X, sim.V, 0, l, sim.title, sim.subtitle, imgpath, sumvec)
+                        sim.t, sim.X, sim.A, sim.V, l, sim.title, sim.subtitle, imgpath, sumvec)
 
         sim.update()
 
