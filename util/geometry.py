@@ -63,19 +63,19 @@ def vec_to_ang(v: np.ndarray) -> float:
     return atan2(v[1], v[0])
 
 
-def ang_to_vec(theta: float) -> np.ndarray:
+def ang_to_vec(a: float) -> np.ndarray:
     """
     Given an angle returns a unit vector with origin in (0,0) at that angle.
-    Module pi is applied, angle might be is greater than pi or smaller than -pi
+    Module pi is applied if the angle is greater than pi or smaller than -pi
 
     Params
     ------
-    theta
+    a
         float number, should be in interval [-pi, pi]
 
     Returns
     ------
-    numpy array of shape (1, 2) with the 2D coordinates of the vector's tip
+    numpy array of shape (2,) with the 2D coordinates of the vector's tip
     """
 
     a = ang_mod(a)
@@ -86,7 +86,7 @@ def ang_to_vec(theta: float) -> np.ndarray:
 
 def bearing_to(a: float, x: np.ndarray) -> float:
     """
-    Compute the angular difference between an angle a at the origin and the angle
+    Compute the angular difference between an angle at the origin and the angle
     formed by a vector from origin to the point x.
 
     This angle is referred to as 'bearing' and they are usually measured in a
@@ -111,7 +111,7 @@ def bearing_to(a: float, x: np.ndarray) -> float:
 
 def average_angles(A: np.ndarray) -> float:
     """
-    Estimates average angle of all p angles in A taking into account possible
+    Estimates average angle of all q angles in A taking into account possible
     negative angles should not cancel each-other out, following
 
         a = arctan2(sum(sin(A[i])), sum(cos(A[i])))
@@ -204,7 +204,7 @@ def bounds_wrap(x: np.ndarray, L: float) -> np.ndarray:
 
 
 def bounds_reflect(
-        x: np.ndarray, v: np.ndarray, L: int
+        x: np.ndarray, v: np.ndarray, L: float
     ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Ensures particle at coordinates in x is within bounds (0, 0) and (L, L) by
@@ -287,8 +287,6 @@ def neighbours(
         raise ValueError("Index i must be smaller than number of particles N!")
     if r <= 0:
         raise ValueError("Radius r must be strictly positive")
-    if topology not in ("metric", "topological"):
-        raise ValueError("Topology must be 'metric' or 'topological'")
 
     Xi = X[i, :]
 

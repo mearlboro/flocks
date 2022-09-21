@@ -20,6 +20,7 @@ def prepare_state_plot(l: float) -> None:
         frame.axes.get_yaxis().set_ticks(range(int(l)+1))
     return
 
+
 def plot_particle(X: np.ndarray) -> None:
     """
     Plot particle as dot
@@ -33,10 +34,31 @@ def plot_particle(X: np.ndarray) -> None:
     plt.scatter(x, y, color='w', marker='.')
     return
 
-def plot_vector(X: np.ndarray, a: float, v: float) -> None:
+
+def plot_vector(X: np.ndarray, V: np.ndarray) -> None:
     """
     Plot particle's vector of velocity in its corresponding position with arrow
-    at the end using quiver style plot
+    at the end using quiver style plot. Use position and 2D direction vector.
+
+    Params
+    ------
+    X
+        2D spatial coordinates of point
+    V
+        2D vector for the velocity of particle
+    """
+    ( x,  y) = X
+    (vx, vy) = V
+
+    # to make them in arrow shape, make headlength and headaxislenght non-zero
+    plt.quiver([x], [y], [vx], [vy],
+               units='width', angles='xy', scale_units='xy', scale = 1,
+               headaxislength=2, headlength=2, width=.005, color='w')
+
+def plot_vector_ang(X: np.ndarray, a: float, v: float) -> None:
+    """
+    Plot particle's vector of velocity in its corresponding position with arrow
+    at the end using quiver style plot. Use position, angle and absolute velocity.
 
     Params
     ------
@@ -53,7 +75,8 @@ def plot_vector(X: np.ndarray, a: float, v: float) -> None:
     # to make them in arrow shape, make headlength and headaxislenght non-zero
     plt.quiver([x], [y], [vx], [vy],
                units='width', angles='xy', scale_units='xy', scale = 1,
-               headaxislength=0, headlength = 0, width=.005, color='y')
+               headaxislength=2, headlength=2, width=.005, color='y')
+    return
 
 
 def plot_oscillator(X: np.ndarray, blink: bool) -> None:
@@ -75,12 +98,57 @@ def plot_oscillator(X: np.ndarray, blink: bool) -> None:
     plt.scatter(x, y, color='g', marker='.')
 
 
+def plot_trajectory(
+        t: int, Xt: np.ndarray, l: float,
+        col: str = 'grey', dt: int = 20
+    ) -> None:
+    """
+    Plot a particle's trajectory for the last dt timepoints
+    Params
+    ------
+    t
+        time unit of the simulation
+    Xt
+        numpy array of shape (t, 2) with all the points previous positions
+    l
+        size of space
+    col
+        colour of trajectory (matplotlib colour name)
+    dt
+        plot last dt timepoints
+    """
+    if t > dt:
+        Xt = Xt[t-dt-1:t+1]
+    else:
+        Xt = Xt[0:t+1]
+
+    if t > 0:
+        # to avoid cross lines for periodic boundaries use a masked array
+        abs_Xt   = np.abs(np.diff(Xt[:, 0]))
+        mask     = np.hstack([ abs_Xt >= l-1, [False]])
+        mask_Xt0 = np.ma.MaskedArray(Xt[:, 0], mask)
+
+        abs_Xt   = np.abs(np.diff(Xt[:, 1]))
+        mask     = np.hstack([ abs_Xt >= l-1, [False]])
+        mask_Xt1 = np.ma.MaskedArray(Xt[:, 1], mask)
+
+        if col == 'grey':
+            alpha = 0.3
+        else:
+            alpha = 1
+
+        plt.plot(mask_Xt0, mask_Xt1, col, alpha=alpha)
+
+    return
+
+
+
 def plot_state(
         t: int, X: np.ndarray, A: np.ndarray,
         v: float, l: int,
-        title: str, path: str,
+        title: str, subtitle: str, path: str,
         save: bool = True, show: bool = False
-	) -> None:
+    ) -> None:
     """
     Plot the state of a 2D multi-agent/particle system
 
@@ -91,9 +159,68 @@ def plot_state(
     X
         np array of shape (N ,2), containing spatial coordinates for N points
     A
-        np array of shape (N, 2), containing angle of velocity for N points
+        np array of shape (N, 1), containing angle of velocity for N points
     V
-        np array of shape (N, 2), containing absolute velocity for N points
+        np array of shape (N, 1), containing absolute velocity for N points
+    l
+        height and width of the system
+    title
+        title of plot
+    subtitle
+        subtitle of plot
+    path
+        path to save file as, should be 'out/img/' folowed by a subdirectory
+        named after the model name and parameters
+    order
+        if True, draw also the normalised sum of all particle velocities
+    save
+        if True, save images to above path with filename t.jpg
+    show
+        if True, display the plot
+    """
+    (n,_) = X.shape
+
+    prepare_state_plot(l)
+    for i in range(n):
+        plot_vector_ang(X[i], A[i], V[i])
+
+    if sumvec:
+        S = sum_vec_ang(A, V) / n
+        plt.plot([l/2, S[0] + l/2], [l/2, S[1] + l/2], 'yellow', linewidth=3)
+
+    plt.xlabel(t)
+    plt.title(subtitle)
+    plt.suptitle(title)
+
+    if show:
+        plt.show()
+
+    if save:
+        plt.savefig(f"{path}/{t}.jpg")
+        plt.close()
+
+    # clear for next plot
+    plt.cla()
+    return
+
+
+def plot_state_vectors(
+        t: int, X: np.ndarray, A: np.ndarray, V: np.ndarray, l: float,
+        title: str, subtitle: str, path: str,
+        sumvec: bool = False, save: bool = True, show: bool = False
+    ) -> None:
+    """
+    Plot the state of a 2D multi-agent/particle system
+    Params
+    ------
+    t
+        time unit of the simulation, to be used as filename for generated image
+    X
+        np array of shape (N ,2), containing spatial coordinates for N points
+    A
+        np array of shape (N, 1), containing angle of velocity for N points
+    V
+        np array of shape (N, 1), containing absolute velocity for N points
     l
         height and width of the system
     title
@@ -204,7 +331,7 @@ def plot_state_oscillators(
         t: int, X: np.ndarray, F: np.ndarray, P: np.ndarray, dt: int, l: int,
         title: str, path: str,
         save: bool = True, show: bool = False
-	) -> None:
+    ) -> None:
     """
     Plot the state of a 2D multi-agent/particle system
 
@@ -234,14 +361,16 @@ def plot_state_oscillators(
     """
     (n, _) = X.shape
 
+    # TODO: magic number 5
     blinks = [ all(0 <= P[i] <= 1.0 / F[i] / 5) for i in range(len(F)) ]
 
+    prepare_state_plot(l)
     for i in range(n):
         plot_oscillator(X[i], blinks[i])
 
-    prepare_state_plot(l)
     plt.xlabel(t)
     plt.title(title)
+    plt.suptitle(title)
 
     if show:
         plt.show()
@@ -303,3 +432,4 @@ def plot_trajectories(
         plt.close()
 
     plt.cla()
+    return

@@ -4,7 +4,6 @@
 #   python -m util.tests
 
 from util.geometry import *
-from util.plot import plot_vector
 
 import numpy as np
 
@@ -56,3 +55,5 @@ test_vector_e(24, neighbours(0, X, 2,    EnumNeighbours.TOPOLOGICAL), [ 0, 5, 4 
 test_scalar_e(25, average_angles([ [1], [-1.1] ]), np.average([ 1, -1.1]))
 test_scalar_e(26, average_angles([ [2], [1] ]),    1.5)
 test_scalar_e(27, average_angles([ [2], [-2] ]),   np.pi)
+
+print("If nothing so far was printed, it means your tests all pass! Good job.")
