@@ -22,6 +22,27 @@ class EnumNeighbours(Enum):
     TOPOLOGICAL = 1
 
 
+def ang_mod(a: float) -> float:
+    """
+    Given an angle in radians, if it is larger than pi or smaller than -pi
+    subtract or add the required rotations around the circle
+
+    Params
+    ------
+    a
+        float representing angle in radians
+
+    Returns
+    ------
+    float representing angle in radians in interval (-pi, pi]
+    """
+    if a == -pi:
+        a = pi
+    if a > pi or a < -pi:
+        a = fmod(a, pi)
+    return a
+
+
 def vec_to_ang(v: np.ndarray) -> float:
     """
     Given a 2D vector return its angle using arctangent function
@@ -57,15 +78,35 @@ def ang_to_vec(theta: float) -> np.ndarray:
     numpy array of shape (1, 2) with the 2D coordinates of the vector's tip
     """
 
-    if theta == -pi:
-        theta = pi
-    if theta > pi or theta < -pi:
-        theta = fmod(theta, pi)
+    a = ang_mod(a)
+    x = np.array([cos(a), sin(a)])
 
-    x = np.array([0, 0])
-    y = np.array([cos(theta), sin(theta)])
+    return x / np.linalg.norm(x, 2)
 
-    return (y - x) / np.linalg.norm(y - x, 2)
+
+def bearing_to(a: float, x: np.ndarray) -> float:
+    """
+    Compute the angular difference between an angle a at the origin and the angle
+    formed by a vector from origin to the point x.
+
+    This angle is referred to as 'bearing' and they are usually measured in a
+    clockwise direction.
+
+    Params
+    ------
+    a
+        float in range (-pi, pi] representing angle in radians
+    x
+        np.array of size (D,) for a point in D-dimensional space
+
+    Returns
+    ------
+    angle in radians
+    """
+    ax = atan2(x[1], x[0])
+    d  = ang_mod(ax - a + pi) - pi
+
+    return d
 
 
 def average_angles(A: np.ndarray) -> float:
@@ -86,10 +127,35 @@ def average_angles(A: np.ndarray) -> float:
     ------
     average direction as a float
     """
-    return np.arctan2(np.sum(np.sin(A)), np.sum(np.cos(A)))
+    return atan2(sum(np.sin(A)), sum(np.cos(A)))
 
 
-def out_of_bounds(x: np.ndarray, L: int) -> bool:
+def sum_vec_ang(A: List[float], V: List[float]) -> np.ndarray:
+    """
+    Sum given vectors with angle stored in A and absolute velocities in V
+
+    Params
+    ------
+    A
+        list of floats representing angles in interval [-pi, pi]
+    V
+        list of floats representing absolute velocities
+
+    Returns
+    ------
+    numpy array of shape (2,) with the 2D coordinates of the sum vector's tip
+    """
+    if (len(A) != len(V)):
+        raise ValueError("Each angle must have a corresponding speed")
+        exit(0)
+
+    vecs = np.array([ ang_to_vec(a) * v for a,v in zip(A, V) ])
+    sumv = np.sum(vecs, axis = 0)
+
+    return sumv
+
+
+def out_of_bounds(x: np.ndarray, L: float) -> bool:
     """
     Checks if 2D coordinates are out of bounds (0, 0) and (L, L)
 
@@ -107,20 +173,20 @@ def out_of_bounds(x: np.ndarray, L: int) -> bool:
     return any(x < 0) or any(x > L)
 
 
-def bounds_wrap(x: np.ndarray, L: int) -> np.ndarray:
+def bounds_wrap(x: np.ndarray, L: float) -> np.ndarray:
     """
     Ensures point x is within bounds (0, 0) and (L, L) in a toroidal world
 
     Params
     ------
     x
-        numpy array of shape (1, 2) for coordinates
+        numpy array of shape (2,) for coordinates
     L
         size of the plane
 
     Returns
     ------
-    numpy array of shape (1, 2)
+    numpy array of shape (2,)
     """
     if x[0] < 0:
       x[0] = L + x[0]
@@ -138,7 +204,7 @@ def bounds_wrap(x: np.ndarray, L: int) -> np.ndarray:
 
 
 def bounds_reflect(
-        x: np.ndarray, v: np.ndarray, dt: float, L: int
+        x: np.ndarray, v: np.ndarray, L: int
     ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Ensures particle at coordinates in x is within bounds (0, 0) and (L, L) by
@@ -159,11 +225,9 @@ def bounds_reflect(
     Params
     ------
     x
-        numpy array of shape (2,), 2D coordinates of point x at current time
+        numpy array of shape (2,) for 2D coordinates of point x at current time
     v
         numpy array of shape (2,), velocity vector of particle at current time
-    dt
-        time increment
     L
         size of the plane
 
@@ -221,8 +285,10 @@ def neighbours(
 
     if i >= N:
         raise ValueError("Index i must be smaller than number of particles N!")
-    if r < 0:
-        raise ValueError("Radius r must be positive")
+    if r <= 0:
+        raise ValueError("Radius r must be strictly positive")
+    if topology not in ("metric", "topological"):
+        raise ValueError("Topology must be 'metric' or 'topological'")
 
     Xi = X[i, :]
 
@@ -239,36 +305,97 @@ def neighbours(
     return neighbours
 
 
-def centre_of_mass(X: np.ndarray, l: int = 0) -> np.ndarray:
+def periodic_mean(x: np.ndarray, L: float) -> float:
+    """
+    Given an array of 1-dimensional coordinates and the size of the space
+    it computes mean by taking into account the boundaries by mapping the
+    data to points on the unit circle
+    Cf. Bai, Breen (2008). "Calculating Center of Mass in an Unbounded 2D
+    Environment". Journal of Graphics Tools, vol. 13 - Issue 4, pp 53-60.
+    https://doi.org/10.1080/2151237X.2008.10129266
+
+    Params
+    ------
+    x
+        numpy array of shape (N,) with one dimension of coordinates of N points
+    L
+        the size of the space in that dimension
+
+    Returns
+    ------
+    centre of mass of all coordinates accounting for the periodic boundaries
+    """
+    cmap  = x / L * 2 * pi - pi
+    cmean = atan2(np.sin(cmap).mean(), np.cos(cmap).mean())
+    mean  = (cmean + pi) / (2 * pi) * L
+
+    return mean
+
+
+def periodic_diff(
+        x: np.ndarray, y: np.ndarray, L: float, norm: bool = False
+    ) -> np.ndarray:
+    """
+    Given two points in a D-dimensional space of size LxL with periodic bounds,
+    return the difference vector between them using the minimum image convention
+    cf. https://en.wikipedia.org/wiki/Periodic_boundary_conditions
+
+    Params
+    -----
+    x
+        numpy array of shape (D,) with the coordinates of the first point
+    y
+        numpy array of shape (D,) with the coordinates of the second point
+    L
+        size of space
+    norm
+        if set, return the metric distance (L2 norm) between the two vectors,
+        otherwise return the difference vector
+    """
+    imgs = [ [0, 0], [0, L], [0, -L], [L, 0], [L, L], [L, -L], [-L, 0], [-L, L], [-L, -L] ]
+    diff = [ (x + i - y, np.linalg.norm(x + i - y)) for i in imgs ]
+    res  = min(diff, key = lambda d: d[1])
+
+    return res[1] if norm else res[0]
+
+
+def centre_of_mass(
+        X: np.ndarray, L: float, topology: EnumBounds
+    ) -> np.ndarray:
     """
     Get coordinates of the centre of mass of all N points in the flock.
-    If l is non-zero, normalize by the dimensions of the D-dimensional space.
+    If L is non-zero, normalize by the dimensions of the D-dimensional space.
 
     Params
     ------
     X
         numpy array of shape (N, D) with the coordinates of N points in
         a D-dimensional space of size l
-    l
+    L
         size of space
 
     Returns
     ------
     numpy array of shape (D,) with the centre of mass coordinates
     """
-    c = np.mean(X, axis = 0)
-    if l:
-        c /= l
+    (_, D) = X.shape
+
+    if topology == EnumBounds.PERIODIC:
+        c = np.array([ periodic_mean(X[:, d], L) for d in range(D) ])
+    else:
+        c = np.mean(X, axis = 0)
+
     return c
 
 
 def relative_positions(
-        X: np.ndarray, c: np.ndarray, l: float = 0
+        X: np.ndarray, c: np.ndarray, L: float, topology: EnumBounds
     ) -> np.ndarray:
     """
     Compute N relative position vectors w.r.t. to a given point (can be centre
     of mass of the flock, or the center of the space in which the flock moves).
-    If l is non-zero, normalize by the dimensions of the D-dimensional space.
+    We use the minimum image convention for computing algorithms for periodic
+    boundaries cf. https://en.wikipedia.org/wiki/Periodic_boundary_conditions
 
     Params
     ------
@@ -277,15 +404,19 @@ def relative_positions(
         a D-dimensional space of size l
     c
         numpy array of shape (D,) for the coordinates of the point of reference
-    l
+    L
         size of space
+    topology
+        whether the space's boundaries are reflective or periodic
 
     Returns
     ------
     numpy array of shape (N, D) with relative position vectors
     """
-    R = np.array([ x - c for x in X ])
-    if l:
-        R /= l
+    if topology == EnumBounds.PERIODIC:
+        R = np.array([ periodic_diff(x, c, L) for x in X ])
+    else:
+        R = np.array([ x - c for x in X ])
+
     return R
 

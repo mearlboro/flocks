@@ -4,6 +4,7 @@
 #   python -m util.tests
 
 from util.geometry import *
+from util.plot import plot_vector
 
 import numpy as np
 
@@ -43,13 +44,13 @@ test_scalar_e(17, vec_to_ang(ang_to_vec(-pi/3)), -pi/3)
 
 # test neighbours
 X = np.array([ [4, 4], [2, 2], [2, 2.8], [2.5, 2.5], [3, 3], [4, 4.1] ])
-test_vector_e(18, neighbours(1, X, 1,    Neighbours.METRIC),      [ 1, 2, 3 ])
-test_vector_e(19, neighbours(1, X, 2,    Neighbours.METRIC),      [ 1, 2, 3, 4 ])
-test_vector_e(20, neighbours(0, X, 0.11, Neighbours.METRIC),      [ 0, 5 ])
-test_vector_e(21, neighbours(0, X, 0.1,  Neighbours.METRIC),      [ 0 ])
-test_vector_e(22, neighbours(0, X, 0.5,  Neighbours.METRIC),      [ 0, 5 ])
-test_vector_e(23, neighbours(2, X, 0.5,  Neighbours.METRIC),      [ 2 ])
-test_vector_e(24, neighbours(0, X, 2,    Neighbours.TOPOLOGICAL), [ 0, 5, 4 ])
+test_vector_e(18, neighbours(1, X, 1,    EnumNeighbours.METRIC),      [ 1, 2, 3 ])
+test_vector_e(19, neighbours(1, X, 2,    EnumNeighbours.METRIC),      [ 1, 2, 3, 4 ])
+test_vector_e(20, neighbours(0, X, 0.11, EnumNeighbours.METRIC),      [ 0, 5 ])
+test_vector_e(21, neighbours(0, X, 0.1,  EnumNeighbours.METRIC),      [ 0 ])
+test_vector_e(22, neighbours(0, X, 0.5,  EnumNeighbours.METRIC),      [ 0, 5 ])
+test_vector_e(23, neighbours(2, X, 0.5,  EnumNeighbours.METRIC),      [ 2 ])
+test_vector_e(24, neighbours(0, X, 2,    EnumNeighbours.TOPOLOGICAL), [ 0, 5, 4 ])
 
 # test average direction
 test_scalar_e(25, average_angles([ [1], [-1.1] ]), np.average([ 1, -1.1]))
