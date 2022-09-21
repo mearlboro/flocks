@@ -215,11 +215,11 @@ def kuravicsek(
 
             print(f'{i}: saving system state to {imgpath}/')
             plot_state_oscillators(
-                i, sim.X, sim.F, sim.P, sim.dt, sim.l, sim.title, imgpath)
+                i, sim.X, sim.F, sim.P, sim.dt, sim.l, sim.title, sim.subtitle, imgpath)
             # bug when saving the first image, so save it again
             if (sim.t == 0):
                 plot_state_oscillators(
-                    i, sim.X, sim.F, sim.P, sim.dt, sim.l, sim.title, imgpath)
+                    i, sim.X, sim.F, sim.P, sim.dt, sim.l, sim.title, sim.subtitle, imgpath)
 
         sim.update()
 

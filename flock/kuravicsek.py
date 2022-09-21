@@ -102,8 +102,8 @@ class KuramotoVicsekModel(FlockModel):
         self.A = np.random.uniform(-np.pi, np.pi, size = (n, 1))
 
         # initialise oscillator frequency and phase
-        self.F = np.zeros(shape = (n, 1)) + f
-        self.P = np.random.uniform(0, np.pi, size = (n, 1))
+        self.F = np.zeros(shape = (n)) + f
+        self.P = np.random.uniform(0, np.pi, size = (n))
 
         # initalise a generic flocking model and uniform positions of particles
         params = { 'eta': e, 'v': v, 'r': r, 'k': k, 'f': f }
@@ -233,5 +233,5 @@ class KuramotoVicsekModel(FlockModel):
         save_var(self.X[:,0], 'x1', path)
         save_var(self.X[:,1], 'x2', path)
         save_var(self.A[:,0], 'a',  path)
-        save_var(self.P[:,0], 'p',  path)
+        save_var(self.P, 'p',  path)
 

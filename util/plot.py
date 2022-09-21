@@ -79,22 +79,39 @@ def plot_vector_ang(X: np.ndarray, a: float, v: float) -> None:
     return
 
 
-def plot_oscillator(X: np.ndarray, blink: bool) -> None:
+def plot_oscillator(
+        X: np.ndarray, p: float, f: float, dt: float, blink: bool
+    ) -> None:
     """
     Plot particle in its corresponding position, and if it's meant to blink,
-    then also plot its light, but not its velocity vector
+    then also plot its light, but not its velocity vector.
 
     Params
     ------
     X
         2D spatial coordinates of point
+    p
+        the current oscillator's phase
+    f
+        the current oscillator's frequency
     blink
-        is the oscilattor currently blinking
+        if set, then only blink once every rotation, otherwise fade a light
+        in and out to show oscillator behavious
     """
-    ( x, y) = X
+    (x, y) = X
 
     if blink:
-        plt.scatter(x, y, color='y', marker='o')
+        # blink only once every rotation for one frame as phase just got >0
+        if 0 <= p <= 2 * np.pi * f * dt:
+            plt.scatter(x, y, color='y', marker='o')
+    else:
+        # fade a light in and out, such that it's off when phase is 0 but fully
+        # bright when phase is pi
+        if p > np.pi:
+            p = 2* np.pi - p
+        p /= np.pi
+        plt.scatter(x, y, color='y', marker='o', alpha=p)
+
     plt.scatter(x, y, color='g', marker='.')
 
 
@@ -329,7 +346,7 @@ def plot_state_particles_trajectories(
 
 def plot_state_oscillators(
         t: int, X: np.ndarray, F: np.ndarray, P: np.ndarray, dt: int, l: int,
-        title: str, path: str,
+        title: str, subtitle: str, path: str,
         save: bool = True, show: bool = False
     ) -> None:
     """
@@ -351,6 +368,8 @@ def plot_state_oscillators(
         height and width of the system
     title
         title of plot
+    subtitle
+        subtitle of plot
     path
         path to save file as, should be 'out/img/' folowed by a subdirectory
         named after the model name and parameters
@@ -361,15 +380,12 @@ def plot_state_oscillators(
     """
     (n, _) = X.shape
 
-    # TODO: magic number 5
-    blinks = [ all(0 <= P[i] <= 1.0 / F[i] / 5) for i in range(len(F)) ]
-
     prepare_state_plot(l)
     for i in range(n):
-        plot_oscillator(X[i], blinks[i])
+        plot_oscillator(X[i], P[i], F[i], dt, False)
 
     plt.xlabel(t)
-    plt.title(title)
+    plt.title(subtitle)
     plt.suptitle(title)
 
     if show:
