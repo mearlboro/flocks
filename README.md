@@ -19,6 +19,15 @@ vector sum of particle velocities or the trajctories can be included in the imag
 
 Use `./gif.sh` to turn all the images into animations of the model.
 
+## Models
+Currently the Standard Vicsek Model (SVM) is implemented reliably, plus topological
+interactions and reflective boundaries.
+
+A variant of the model is also implemented where each particle is a Kuramoto
+oscillator. This has not been fully tested to full scrutiny.
+
+Reynolds flocking model is also in progress, but it does NOT behave correctly.
+
 ## Examples
 ```
 $ python -m flock.main vicsek -n 100 -l 5 --bounds PERIODIC --neighbours METRIC \

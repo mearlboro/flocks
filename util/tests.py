@@ -88,3 +88,5 @@ test_scalar_e(37, periodic_diff(X[0], X[2], l, True), 1)
 test_scalar_e(38, bearing_to(np.deg2rad(45), [1, 1]), 0)
 test_scalar_e(38, bearing_to(np.deg2rad(45), [0, 1]), np.deg2rad(-135))
 
+
+print("If nothing so far was printed, it means your tests all pass! Good job.")

@@ -79,7 +79,7 @@ class FlockModel:
         self.t    = 0
         self.traj = {}
 
-        print(f"Initialised {self.title}, n = {self.n}, l = {self.l}")
+        print(f"Initialised {self.title}, n = {self.n}, l = {self.l}, dt = {self.dt}")
         print(f" with parameters: {self.subtitle}")
 
 
@@ -182,11 +182,11 @@ class FlockModel:
         pass
 
 
-    def save(self) -> None:
+    def save(self, path) -> None:
         """
         Save state of every particle in the system to file
         """
-        pass
+        print(f'{int(self.t / self.dt)}: saving system state to {path}')
 
 
     def mkdir(self, root_dir) -> str:

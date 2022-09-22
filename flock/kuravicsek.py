@@ -8,49 +8,67 @@ from util.util     import save_var
 from typing import Any, Dict, List, Tuple
 
 
-class VicsekModel(FlockModel):
+class KuramotoVicsekModel(FlockModel):
     """
-    Setup the parameters for the Vicsek model simulation. The model simulates
-    the behaviour of moving particles in a 2D continuous space. The only rule
-    is: at each time step a given particle driven with a constant absolute
-    velocity v assumes the average direction of motion of the particles in its
-    neighborhood of radius r with some random perturbation E added.
+    This simulation combines a Vicsek 2D particle model with a Kuramoto model of
+    oscillators.
 
-    The strating positions and velocities of particles are distributed uniformly
-    at random.
+    At each time step a given particle driven with a constant absolute velocity
+    v assumes the average direction of motion of the particles in its
+    neighborhood of radius r with some random perturbation E added.
 
     The position Xi of each particle i evolves as follows:
 
         Xi(t + dt) = Xi(t) + Vi(t) dt
 
     where the velocity Vi(t) is given by the absolute velocity v and angle Ai(t)
-    which evolves as follows:
+    which evolves into the average angle <A(t)> of its neigbours:
 
-        Ai(t + i)  = <A(t)>(i, r) + dE
+        Ai(t + dt)  = <A(t)> + dE
 
-    For a detailed description of default parameter choices and initial conditions,
-    [1] Vicsek et al. (1995). "Novel Type of Phase Transition in a System of Self
-        Driven Particles". Physical Review Letters. 75 (6): 1226–1229.
-        https://arxiv.org/abs/cond-mat/0611743
+    For a description of the self-propelled particle model see Vicsek et al. (1995).
+    "Novel Type of Phase Transition in a System of Self Driven Particles".
+    Physical Review Letters. 75 (6): 1226–1229.
+    https://arxiv.org/abs/cond-mat/0611743
+
+    Moreover, each particle acts as an oscillator with frequency Fi, phase Pi.
+    These oscillators are coupled with coupling parameter k if they are in
+    proximity of each other, and the phase Pi of each oscillator evolves as:
+
+        Pi(t + dt) = Pi + dP * dt
+
+    where the phase difference dP comes from the angular frequency and the sum
+    of angular differences with its neighbours weighted by the parameter k:
+
+        dP = Fi * 2pi + k * sum(sin(Pi(t) - Pj(t))
+
+    It is assumed that each oscillator has the same frequency f, but this can
+    be easily amended through the use of the array F.
+
+    For a description of the oscillator model see,  Kuramoto, Y. (1984).
+    "Chemical Oscillations, Waves, and Turbulence."
+    https://doi.org/10.1007/978-3-642-69689-3
     """
 
     def __init__(self,
-                 n: int, l: float,
+                 n: int, l: int,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
                  e: float, v: float = 0.3, r: float = 1,
-                 dt: float = 1
+                 k: float = 1, f: float = 1,
+                 dt: float = 0.1
         ) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
-        X for the N particles, and random angle array A for the angle of their
-        velocity
+        X for the N particles, and random angle arrays A and P for the angles of
+        their velocity and the starting phase of the oscillator
 
         Params
         ------
         n
             number of particles in the system
         l
-            continuous space is LxL in size, with periodic boundaries
+            continuous space is LxL in size, with boundaries specified by the
+            `boundaries` param
         bounds
             enum value to specify whether particles wrap around boundaries
             (PERIODIC) or bounce off them (REFLECTIVE)
@@ -61,25 +79,35 @@ class VicsekModel(FlockModel):
         e
             perturbation. Noise dE added in each evolution step is uniform
             distributed in [-E/2, E/2]
-        v  = 0.3
+        v  = 1
             absolute velocity of each particle
         r  = 1
-            proximity radius, normally 1 if METRIC neighbours are used, or the
-            number of neighbours to follow
-        dt = 1
+            proximity radius, normally used as distance unit, or number of
+            neighbours to follow
+        k
+            for the Kuramoto model, the coupling parameter between neighbours
+        f  = 1
+            frequency of oscillators, measured in Hertz
+        dt = 0.1
             time unit
         """
         # initialise model-specific parameters
-        self.e = e
-        self.v = v
-        self.r = r
+        self.e  = e
+        self.v  = v
+        self.r  = r
+        self.f  = f
+        self.k  = k
 
         # initialise particle velocity angles spread uniformly at random
         self.A = np.random.uniform(-np.pi, np.pi, size = (n, 1))
 
+        # initialise oscillator frequency and phase
+        self.F = np.zeros(shape = (n)) + f
+        self.P = np.random.uniform(0, np.pi, size = (n))
+
         # initalise a generic flocking model and uniform positions of particles
-        params = { 'eta': e, 'v': v, 'r': r }
-        super().__init__('Vicsek', n, l, bounds, neighbours, dt, params)
+        params = { 'eta': e, 'v': v, 'r': r, 'k': k, 'f': f }
+        super().__init__('KuramotoVicsek', n, l, bounds, neighbours, dt, params)
 
 
     def __new_A(self, i: int) -> float:
@@ -99,9 +127,9 @@ class VicsekModel(FlockModel):
         """
         indexes = neighbours(i, self.X, self.r, self.neighbours)
         Aavg = average_angles(self.A[indexes])
-        dE = np.random.uniform(-self.e / 2, self.e / 2)
+        dE = np.random.uniform(-self.e/2, self.e/2)
 
-        return ang_mod(Aavg + dE)
+        return Aavg + dE
 
 
     def __new_X(self, i: int) -> Tuple[np.ndarray, float]:
@@ -145,6 +173,33 @@ class VicsekModel(FlockModel):
         return (Xi, Ai)
 
 
+    def __new_P(self, i: int) -> float:
+        """
+        Compute new phase P for particle i based on Kuramoto formula, when only
+        coupled to the nearest neighbours
+
+        Params
+        ------
+        i
+            index i for particle to update at time t
+
+        Returns
+        ------
+        updated Pi, a float between 0 and pi
+        """
+        indexes = neighbours(i, self.X, self.r, self.neighbours)
+
+        Pi = self.P[i]
+        Wi = 2 * np.pi * self.F[i]
+
+        dP = Wi + self.k * sum(
+            [ np.sin(self.P[j] - self.P[i]) for j in indexes ])
+        Pi = Pi + dP * self.dt
+
+        return ang_mod(Pi)
+
+
+
     def update(self) -> None:
         """
         Update every particle in the system to its new position
@@ -158,6 +213,7 @@ class VicsekModel(FlockModel):
         X_A = [ self.__new_X(i) for i in range(self.n) ]
         self.X = np.array([  X_A[i][0]  for i in range(self.n) ])
         self.A = np.array([ [X_A[i][1]] for i in range(self.n) ])
+        self.P = np.array([ self.__new_P(i) for i in range(self.n) ])
 
         self.t += self.dt
 
@@ -177,5 +233,5 @@ class VicsekModel(FlockModel):
         save_var(self.X[:,0], 'x1', path)
         save_var(self.X[:,1], 'x2', path)
         save_var(self.A[:,0], 'a',  path)
-
+        save_var(self.P, 'p',  path)
 

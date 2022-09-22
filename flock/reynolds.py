@@ -53,7 +53,7 @@ class ReynoldsModel(FlockModel):
                  n: int, l: float,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
                  a1: float, a2: float, a3: float, r: float,
-                 minv: float = 3, maxv: float = 9, dt: float = 1
+                 minv: float = 3, maxv: float = 9, dt: float = 0.1
         ) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
@@ -82,8 +82,8 @@ class ReynoldsModel(FlockModel):
         r  = 1
             proximity radius, normally 1 if METRIC neighbours are used, or the
             number of neigbours to follow
-        dt = 1
-            discrete time unit
+        dt
+            time unit
         """
         # initialise model-specific parameters
         self.a1 = a1
@@ -239,7 +239,7 @@ class ReynoldsModel(FlockModel):
         self.A = np.array([ X_A_V[i][1] for i in range(self.n) ])
         self.V = np.array([ X_A_V[i][2] for i in range(self.n) ])
 
-        self.t += 1
+        self.t += self.dt
 
 
     def save(self, path) -> None:
@@ -252,7 +252,8 @@ class ReynoldsModel(FlockModel):
         if non-existent, create text files to save each variable
         append variable state to corresponding file
         """
-        print(f'{self.t}: saving system state to {path}/')
+        super().save(path)
+
         save_var(self.X[:, 0], 'x1', path)
         save_var(self.X[:, 1], 'x2', path)
         save_var(self.A, 'a',  path)

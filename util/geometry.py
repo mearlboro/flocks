@@ -50,7 +50,7 @@ def vec_to_ang(v: np.ndarray) -> float:
     Params
     ------
     v
-        np.array of shape (1, 2) or list of floats. The first param to arctan2
+        np.array of shape (1, 2) or list of floats. The first param to atan2
         must be the vertical component on the y-axis to produce the consistent
         quadrant
         cf. https://en.wikipedia.org/wiki/Atan2
@@ -71,7 +71,7 @@ def ang_to_vec(a: float) -> np.ndarray:
     Params
     ------
     a
-        float number representing angle, should be in interval [-pi, pi]
+        float number, should be in interval [-pi, pi]
 
     Returns
     ------
@@ -111,7 +111,7 @@ def bearing_to(a: float, x: np.ndarray) -> float:
 
 def average_angles(A: np.ndarray) -> float:
     """
-    Estimates average angle of all p angles in A taking into account possible
+    Estimates average angle of all q angles in A taking into account possible
     negative angles should not cancel each-other out, following
 
         a = arctan2(sum(sin(A[i])), sum(cos(A[i])))
@@ -225,7 +225,7 @@ def bounds_reflect(
     Params
     ------
     x
-        numpy array of shape (2,), 2D coordinates of point x at current time
+        numpy array of shape (2,) for 2D coordinates of point x at current time
     v
         numpy array of shape (2,), velocity vector of particle at current time
     L
@@ -253,7 +253,10 @@ def bounds_reflect(
 
 
 def neighbours(
-        i: int, X: np.ndarray, r: float, topology: EnumNeighbours
+        i: int,
+        X: np.ndarray,
+        r: float,
+        topology: EnumNeighbours = EnumNeighbours.METRIC
     ) -> List[int]:
     """
     Get the neighbours of a given point of index i in the list of points X.
@@ -282,8 +285,8 @@ def neighbours(
 
     if i >= N:
         raise ValueError("Index i must be smaller than number of particles N!")
-    if r < 0:
-        raise ValueError("Radius r must be positive")
+    if r <= 0:
+        raise ValueError("Radius r must be strictly positive")
 
     Xi = X[i, :]
 
@@ -359,6 +362,7 @@ def centre_of_mass(
     ) -> np.ndarray:
     """
     Get coordinates of the centre of mass of all N points in the flock.
+    If L is non-zero, normalize by the dimensions of the D-dimensional space.
 
     Params
     ------

@@ -6,7 +6,6 @@ from util.geometry import *
 
 import typing
 
-
 def prepare_state_plot(l: float) -> None:
     """
     setup plot for an l-sized 2D world with black background
@@ -38,13 +37,13 @@ def plot_particle(X: np.ndarray) -> None:
 def plot_vector(X: np.ndarray, V: np.ndarray) -> None:
     """
     Plot particle's vector of velocity in its corresponding position with arrow
-    at the end using quiver style plot
+    at the end using quiver style plot. Use position and 2D direction vector.
 
     Params
     ------
     X
         2D spatial coordinates of point
-    a
+    V
         2D vector for the velocity of particle
     """
     ( x,  y) = X
@@ -54,12 +53,11 @@ def plot_vector(X: np.ndarray, V: np.ndarray) -> None:
     plt.quiver([x], [y], [vx], [vy],
                units='width', angles='xy', scale_units='xy', scale = 1,
                headaxislength=2, headlength=2, width=.005, color='w')
-    return
 
 def plot_vector_ang(X: np.ndarray, a: float, v: float) -> None:
     """
     Plot particle's vector of velocity in its corresponding position with arrow
-    at the end using quiver style plot
+    at the end using quiver style plot. Use position, angle and absolute velocity.
 
     Params
     ------
@@ -80,13 +78,48 @@ def plot_vector_ang(X: np.ndarray, a: float, v: float) -> None:
     return
 
 
+def plot_oscillator(
+        X: np.ndarray, p: float, f: float, dt: float, blink: bool
+    ) -> None:
+    """
+    Plot particle in its corresponding position, and if it's meant to blink,
+    then also plot its light, but not its velocity vector.
+
+    Params
+    ------
+    X
+        2D spatial coordinates of point
+    p
+        the current oscillator's phase
+    f
+        the current oscillator's frequency
+    blink
+        if set, then only blink once every rotation, otherwise fade a light
+        in and out to show oscillator behavious
+    """
+    (x, y) = X
+
+    if blink:
+        # blink only once every rotation for one frame as phase just got >0
+        if 0 <= p <= 2 * np.pi * f * dt:
+            plt.scatter(x, y, color='y', marker='o')
+    else:
+        # fade a light in and out, such that it's off when phase is 0 but fully
+        # bright when phase is pi
+        if p > np.pi:
+            p = 2* np.pi - p
+        p /= np.pi
+        plt.scatter(x, y, color='y', marker='o', alpha=p)
+
+    plt.scatter(x, y, color='g', marker='.')
+
+
 def plot_trajectory(
         t: int, Xt: np.ndarray, l: float,
         col: str = 'grey', dt: int = 20
     ) -> None:
     """
     Plot a particle's trajectory for the last dt timepoints
-
     Params
     ------
     t
@@ -125,10 +158,12 @@ def plot_trajectory(
     return
 
 
-def plot_state_vectors(
-        t: int, X: np.ndarray, A: np.ndarray, V: np.ndarray, l: float,
+
+def plot_state(
+        t: int, X: np.ndarray, A: np.ndarray,
+        v: float, l: int,
         title: str, subtitle: str, path: str,
-        sumvec: bool = False, save: bool = True, show: bool = False
+        save: bool = True, show: bool = False
     ) -> None:
     """
     Plot the state of a 2D multi-agent/particle system
@@ -140,9 +175,68 @@ def plot_state_vectors(
     X
         np array of shape (N ,2), containing spatial coordinates for N points
     A
-        np array of shape (N, 2), containing angle of velocity for N points
+        np array of shape (N, 1), containing angle of velocity for N points
     V
-        np array of shape (N, 2), containing absolute velocity for N points
+        np array of shape (N, 1), containing absolute velocity for N points
+    l
+        height and width of the system
+    title
+        title of plot
+    subtitle
+        subtitle of plot
+    path
+        path to save file as, should be 'out/img/' folowed by a subdirectory
+        named after the model name and parameters
+    order
+        if True, draw also the normalised sum of all particle velocities
+    save
+        if True, save images to above path with filename t.jpg
+    show
+        if True, display the plot
+    """
+    (n,_) = X.shape
+
+    prepare_state_plot(l)
+    for i in range(n):
+        plot_vector_ang(X[i], A[i], V[i])
+
+    if sumvec:
+        S = sum_vec_ang(A, V) / n
+        plt.plot([l/2, S[0] + l/2], [l/2, S[1] + l/2], 'yellow', linewidth=3)
+
+    plt.xlabel(t)
+    plt.title(subtitle)
+    plt.suptitle(title)
+
+    if show:
+        plt.show()
+
+    if save:
+        plt.savefig(f"{path}/{t}.jpg")
+        plt.close()
+
+    # clear for next plot
+    plt.cla()
+    return
+
+
+def plot_state_vectors(
+        t: int, X: np.ndarray, A: np.ndarray, V: np.ndarray, l: float,
+        title: str, subtitle: str, path: str,
+        sumvec: bool = False, save: bool = True, show: bool = False
+    ) -> None:
+    """
+    Plot the state of a 2D multi-agent/particle system
+    Params
+    ------
+    t
+        time unit of the simulation, to be used as filename for generated image
+    X
+        np array of shape (N ,2), containing spatial coordinates for N points
+    A
+        np array of shape (N, 1), containing angle of velocity for N points
+    V
+        np array of shape (N, 1), containing absolute velocity for N points
     l
         height and width of the system
     title
@@ -249,6 +343,63 @@ def plot_state_particles_trajectories(
     return
 
 
+def plot_state_oscillators(
+        t: int, X: np.ndarray, F: np.ndarray, P: np.ndarray, dt: int, l: int,
+        title: str, subtitle: str, path: str,
+        save: bool = True, show: bool = False
+    ) -> None:
+    """
+    Plot the state of a 2D multi-agent/particle system
+
+    Params
+    ------
+    t
+        time unit of the simulation, to be used as filename for generated image
+    X
+        numpy array of shape (N,2), containing spatial coordinates for N points
+    F
+        numpy array of shape (N,1), containing the frequency of each oscillator
+    P
+        numpy array of shape (N,1), containing the phase of each oscillator
+    dt
+        time increment
+    l
+        height and width of the system
+    title
+        title of plot
+    subtitle
+        subtitle of plot
+    path
+        path to save file as, should be 'out/img/' folowed by a subdirectory
+        named after the model name and parameters
+    save
+        if True, save images to above path with filename t.jpg
+    show
+        if True, display the plot
+    """
+    (n, _) = X.shape
+
+    prepare_state_plot(l)
+    for i in range(n):
+        plot_oscillator(X[i], P[i], F[i], dt, False)
+
+    plt.xlabel(t)
+    plt.title(subtitle)
+    plt.suptitle(title)
+
+    if show:
+        plt.show()
+
+    if save:
+        plt.savefig(f"{path}/{t}.jpg")
+        plt.close()
+
+    # clear for next plot
+    plt.cla()
+
+    return
+
+
 def plot_trajectories(
         X: np.ndarray, M: np.ndarray, l: float,
         name: str, title: str, suptitle: str, path: str,
@@ -297,4 +448,3 @@ def plot_trajectories(
 
     plt.cla()
     return
-
