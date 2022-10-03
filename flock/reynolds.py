@@ -49,11 +49,11 @@ class ReynoldsModel(FlockModel):
         Biol 16(12): e1008289. https://doi.org/10.1371/journal.pcbi.1008289
     """
 
-    def __init__(self,
+    def __init__(self, seed: int,
                  n: int, l: float,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
                  a1: float, a2: float, a3: float, r: float,
-                 minv: float = 3, maxv: float = 9, dt: float = 0.1
+                 minv: float = 3, maxv: float = 9, dt: float = 0.01
         ) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
@@ -62,6 +62,9 @@ class ReynoldsModel(FlockModel):
 
         Params
         ------
+        seed
+            seed to be used for all random behaviour so that the simulation/
+            experiment can be reproduced
         n
             number of boids in the system
         l
@@ -93,6 +96,9 @@ class ReynoldsModel(FlockModel):
         self.r  = r
         self.maxv = maxv
 
+        # initialise seed
+        np.random.seed(seed)
+
         # initialise boid angle velocities with uniform random angles
         self.A = np.random.uniform(-np.pi, np.pi, size = n)
 
@@ -101,7 +107,7 @@ class ReynoldsModel(FlockModel):
 
         # initalise a generic flocking model and uniform positions of boids
         params = { 'avoidance': a1, 'alignment': a2, 'aggregate': a3, 'r': r }
-        super().__init__('Reynolds', n, l, bounds, neighbours, dt, params)
+        super().__init__('Reynolds', seed, n, l, bounds, neighbours, dt, params)
 
 
     def __avoidance(self, i: int, indexes: List[int]) -> float:

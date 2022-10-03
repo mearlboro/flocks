@@ -34,7 +34,7 @@ class VicsekModel(FlockModel):
         https://arxiv.org/abs/cond-mat/0611743
     """
 
-    def __init__(self,
+    def __init__(self, seed: int,
                  n: int, l: float,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
                  e: float, v: float = 0.3, r: float = 1,
@@ -47,6 +47,9 @@ class VicsekModel(FlockModel):
 
         Params
         ------
+        seed
+            seed to be used for all random behaviour so that the simulation/
+            experiment can be reproduced
         n
             number of particles in the system
         l
@@ -74,12 +77,15 @@ class VicsekModel(FlockModel):
         self.v = v
         self.r = r
 
+        # initialise seed
+        np.random.seed(seed)
+
         # initialise particle velocity angles spread uniformly at random
         self.A = np.random.uniform(-np.pi, np.pi, size = (n, 1))
 
         # initalise a generic flocking model and uniform positions of particles
         params = { 'eta': e, 'v': v, 'r': r }
-        super().__init__('Vicsek', n, l, bounds, neighbours, dt, params)
+        super().__init__('Vicsek', seed, n, l, bounds, neighbours, dt, params)
 
 
     def __new_A(self, i: int) -> float:

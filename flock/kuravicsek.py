@@ -50,7 +50,7 @@ class KuramotoVicsekModel(FlockModel):
     https://doi.org/10.1007/978-3-642-69689-3
     """
 
-    def __init__(self,
+    def __init__(self, seed: int,
                  n: int, l: int,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
                  e: float, v: float = 0.3, r: float = 1,
@@ -64,6 +64,9 @@ class KuramotoVicsekModel(FlockModel):
 
         Params
         ------
+        seed
+            seed to be used for all random behaviour so that the simulation/
+            experiment can be reproduced
         n
             number of particles in the system
         l
@@ -98,6 +101,9 @@ class KuramotoVicsekModel(FlockModel):
         self.f  = f
         self.k  = k
 
+        # initialise seed
+        np.random.seed(seed)
+
         # initialise particle velocity angles spread uniformly at random
         self.A = np.random.uniform(-np.pi, np.pi, size = (n, 1))
 
@@ -107,7 +113,7 @@ class KuramotoVicsekModel(FlockModel):
 
         # initalise a generic flocking model and uniform positions of particles
         params = { 'eta': e, 'v': v, 'r': r, 'k': k, 'f': f }
-        super().__init__('KuramotoVicsek', n, l, bounds, neighbours, dt, params)
+        super().__init__('KuramotoVicsek', seed, n, l, bounds, neighbours, dt, params)
 
 
     def __new_A(self, i: int) -> float:

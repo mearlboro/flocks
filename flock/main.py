@@ -13,12 +13,13 @@ from typing import Any, Dict, List, Tuple
 
 
 @click.command()
-@click.option('-t', default = 100,  help='Time to run the simulation')
-@click.option('-n', default = 10,   help='Number of particles')
-@click.option('-l', default = 2,    help='System size')
-@click.option('-e', default = 0.4,  help='Perturbation of angular velocity')
-@click.option('-v', default = 0.1,  help='Absolute velocity')
-@click.option('-r', default = 1.0,  help='Radius or number of neighbours to follow')
+@click.option('-s',  default = 0,    help='Seed to run simulation: will generate a random seed if not given.')
+@click.option('-t',  default = 100,  help='Time to run the simulation')
+@click.option('-n',  default = 10,   help='Number of particles')
+@click.option('-l',  default = 2.0,  help='System size')
+@click.option('-e',  default = 0.4,  help='Perturbation of angular velocity')
+@click.option('-v',  default = 0.1,  help='Absolute velocity')
+@click.option('-r',  default = 1.0,  help='Radius or number of neighbours to follow')
 @click.option('-dt', default = 1.0,  help='Time step')
 @click.option('--bounds', required = True,
               type = click.Choice(['PERIODIC', 'REFLECTIVE']),
@@ -33,7 +34,7 @@ from typing import Any, Dict, List, Tuple
 @click.option('--saveimg', is_flag = True, default = False,
               help = 'Save images for each state')
 def vicsek(
-        t: int, n: int, l: float, e: float, v: float, r: float, dt: float,
+        s: int, t: int, n: int, l: float, e: float, v: float, r: float, dt: float,
         bounds: str, neighbours: str,
         trajectories: bool, sumvec: bool,
         saveimg: bool
@@ -47,8 +48,10 @@ def vicsek(
         python -m flock.main vicsek [flags]
 
     """
+    if not s:
+        s = np.random.randint(10000)
     # initialise model
-    sim = VicsekModel(n, l, EnumBounds[bounds], EnumNeighbours[neighbours], e, v, r)
+    sim = VicsekModel(s, n, l, EnumBounds[bounds], EnumNeighbours[neighbours], e, v, r)
 
     # initialise folder to save simulation results
     txtpath = sim.mkdir('out/txt')
@@ -90,14 +93,15 @@ def vicsek(
 
 
 @click.command()
-@click.option('-t',  default = 20,   help='Time to run the simulation')
-@click.option('-n',  default = 10,   help='Number of particles')
-@click.option('-l',  default = 100,  help='System size')
-@click.option('-a1', default = 0.1,  help='Avoidance')
-@click.option('-a2', default = 0.25, help='Alignment')
-@click.option('-a3', default = 0.15, help='Aggregate')
-@click.option('-r',  default = 1.0,  help='Radius or number of neighbours to follow')
-@click.option('-dt', default = 0.1,  help='Time step')
+@click.option('-s',  default = 0,     help='Seed to run simulation: will generate a random seed if not given.')
+@click.option('-t',  default = 1,     help='Time to run the simulation')
+@click.option('-n',  default = 10,    help='Number of particles')
+@click.option('-l',  default = 100.0, help='System size')
+@click.option('-a1', default = 0.1,   help='Avoidance')
+@click.option('-a2', default = 0.25,  help='Alignment')
+@click.option('-a3', default = 0.15,  help='Aggregate')
+@click.option('-r',  default = 1.0,   help='Radius or number of neighbours to follow')
+@click.option('-dt', default = 0.01,  help='Time step')
 @click.option('--bounds', required = True,
               type = click.Choice(['PERIODIC', 'REFLECTIVE']),
               help = 'How particles behave at the boundary')
@@ -111,7 +115,7 @@ def vicsek(
 @click.option('--saveimg', is_flag = True, default = False,
               help = 'Save images for each state')
 def reynolds(
-        t: int, n: int, l: float, a1: float, a2: float, a3: float, r: float, dt: float,
+        s: int, t: int, n: int, l: float, a1: float, a2: float, a3: float, r: float, dt: float,
         bounds: str, neighbours: str,
         trajectories: bool, sumvec: bool,
         saveimg: bool
@@ -123,10 +127,11 @@ def reynolds(
     Run from the root pyflocks/ folder
 
         python -m flock.main reynolds [flags]
-
     """
+    if not s:
+        s = np.random.randint(10000)
     # initialise model
-    sim = ReynoldsModel(n, l, EnumBounds[bounds], EnumNeighbours[neighbours],
+    sim = ReynoldsModel(s, n, l, EnumBounds[bounds], EnumNeighbours[neighbours],
                         a1, a2, a3, r, dt)
 
     # initialise folder to save simulation results
@@ -167,9 +172,10 @@ def reynolds(
 
 
 @click.command()
+@click.option('-s',  default = 0,    help='Seed to run simulation: will generate a random seed if not given.')
 @click.option('-t',  default = 20,   help='Time to run the simulation')
 @click.option('-n',  default = 10,   help='Number of particles')
-@click.option('-l',  default = 5,    help='System size')
+@click.option('-l',  default = 5.0,  help='System size')
 @click.option('-e',  default = 0.5,  help='Perturbation of angular velocity')
 @click.option('-v',  default = 0.5,  help='Absolute velocity')
 @click.option('-r',  default = 1,    help='Radius or number of neighbours to follow')
@@ -185,7 +191,7 @@ def reynolds(
 @click.option('--saveimg', is_flag = True, default = False,
               help = 'Save images for each state')
 def kuravicsek(
-        t: int, n: int, l: int, e: float, v: float, r: float, k: float, f: float, dt: float,
+        s: int, t: int, n: int, l: int, e: float, v: float, r: float, k: float, f: float, dt: float,
         bounds: str, neighbours: str, saveimg: bool
     ) -> None:
     """
@@ -196,8 +202,11 @@ def kuravicsek(
         python -m vicsek.main [flags]
 
     """
+    if not s:
+        s = np.random.randint(10000)
+
     # initialise model
-    sim = KuramotoVicsekModel(n, l, EnumBounds[bounds], EnumNeighbours[neighbours],
+    sim = KuramotoVicsekModel(s, n, l, EnumBounds[bounds], EnumNeighbours[neighbours],
             e, v, r, k, f)
 
     # initialise folder to save simulation results

@@ -19,7 +19,7 @@ class FlockModel:
     velocity vectors. At each discrete time step, the position (and velocity)
     may be updated according to model rules.
     """
-    def __init__(self, name: str, n: int, l: float,
+    def __init__(self, name: str, seed: int, n: int, l: float,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
                  dt: float = 1,
                  params: Dict[str, float] = {}) -> None:
@@ -32,6 +32,9 @@ class FlockModel:
         ------
         name
             name of the model
+        seed
+            seed to be used for all random behaviour so that the simulation/
+            experiment can be reproduced
         n
             number of particles in the system
         l
@@ -66,11 +69,14 @@ class FlockModel:
 
         # we save the model name and params as a string, to be used when saving
         # and we also typeset a figure title and subtitle
-        self.string   = f"{name}_{bounds_str}_{neighbours_str}_{'_'.join(params_strs)}"
+        self.string   = f"{name}_{bounds_str}_{neighbours_str}_{'_'.join(params_strs)}_{seed}"
         self.title    = f"{name} model, {bounds_str} bounds, {neighbours_str} neighbours"
         self.subtitle = ', '.join([ f'${p}$ = {v}' if len(p) not in range(3, 7)
                                     else f'$\\{p}$ = {v}'
                                     for p,v in params.items() ])
+
+        # initialise seed
+        np.random.seed(seed)
 
         # initialise particle positions spread uniformly at random
         self.X = np.random.uniform(0, l, size = (n, 2))
@@ -81,6 +87,7 @@ class FlockModel:
 
         print(f"Initialised {self.title}, n = {self.n}, l = {self.l}, dt = {self.dt}")
         print(f" with parameters: {self.subtitle}")
+        print(f" and seed {seed}")
 
 
     @classmethod
@@ -192,11 +199,11 @@ class FlockModel:
     def mkdir(self, root_dir) -> str:
         """
         Create output folder based on simulation name to store simulation
-        results with a name of the form. If it already exists, append an ID and
-        return the new path of the form
+        results with a name of the form
 
             {root_dir}/
-                {name}_{bounds}_{neighbours}(_{paramname}{paramvalue})+(-{simID})?
+                {name}_{bounds}_{neighbours}(_{paramname}{paramvalue})+(-{simID})?_{seed}
+
         """
         pth = f'{root_dir}/{self.string}'
 
