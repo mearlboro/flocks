@@ -91,7 +91,7 @@ class KuramotoVicsekModel(FlockModel):
             for the Kuramoto model, the coupling parameter between neighbours
         f  = 1
             frequency of oscillators, measured in Hertz
-        dt = 0.1
+        dt
             time unit
         """
         # initialise model-specific parameters

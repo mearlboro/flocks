@@ -51,7 +51,7 @@ def vicsek(
     if not s:
         s = np.random.randint(10000)
     # initialise model
-    sim = VicsekModel(s, n, l, EnumBounds[bounds], EnumNeighbours[neighbours], e, v, r)
+    sim = VicsekModel(s, n, l, EnumBounds[bounds], EnumNeighbours[neighbours], e, v, r, dt)
 
     # initialise folder to save simulation results
     txtpath = sim.mkdir('out/txt')
@@ -132,7 +132,7 @@ def reynolds(
         s = np.random.randint(10000)
     # initialise model
     sim = ReynoldsModel(s, n, l, EnumBounds[bounds], EnumNeighbours[neighbours],
-                        a1, a2, a3, r, dt)
+                        a1, a2, a3, r, dt = dt)
 
     # initialise folder to save simulation results
     txtpath = sim.mkdir('out/txt')
@@ -207,7 +207,7 @@ def kuravicsek(
 
     # initialise model
     sim = KuramotoVicsekModel(s, n, l, EnumBounds[bounds], EnumNeighbours[neighbours],
-            e, v, r, k, f)
+            e, v, r, k, f, dt)
 
     # initialise folder to save simulation results
     txtpath = sim.mkdir('out/txt')

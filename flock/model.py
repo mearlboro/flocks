@@ -46,8 +46,8 @@ class FlockModel:
             enum value to whecify whether neighbourd are chosen if they are in a
             certain radius r from current particle (METRIC) or in the r closest
             neighbours (TOPOLOGICAl)
-        dt = 1
-            discrete time unit
+        dt
+            time unit
         params
             dictionary containing parameter names and values for the model
         """

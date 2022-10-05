@@ -106,7 +106,8 @@ class ReynoldsModel(FlockModel):
         self.V = np.random.uniform(minv, maxv, size = n)
 
         # initalise a generic flocking model and uniform positions of boids
-        params = { 'avoidance': a1, 'alignment': a2, 'aggregate': a3, 'r': r }
+        params = { 'avoidance': a1, 'alignment': a2, 'aggregate': a3,
+                    'r': r, 'minv': minv, 'maxv': maxv }
         super().__init__('Reynolds', seed, n, l, bounds, neighbours, dt, params)
 
 
