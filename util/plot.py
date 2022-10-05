@@ -34,7 +34,7 @@ def plot_particle(X: np.ndarray) -> None:
     return
 
 
-def plot_vector(X: np.ndarray, V: np.ndarray) -> None:
+def plot_vector(X: np.ndarray, V: np.ndarray, col: str = 'w') -> None:
     """
     Plot particle's vector of velocity in its corresponding position with arrow
     at the end using quiver style plot. Use position and 2D direction vector.
@@ -52,9 +52,9 @@ def plot_vector(X: np.ndarray, V: np.ndarray) -> None:
     # to make them in arrow shape, make headlength and headaxislenght non-zero
     plt.quiver([x], [y], [vx], [vy],
                units='width', angles='xy', scale_units='xy', scale = 1,
-               headaxislength=2, headlength=2, width=.005, color='w')
+               headaxislength=2, headlength=2, width=.005, color=col)
 
-def plot_vector_ang(X: np.ndarray, a: float, v: float) -> None:
+def plot_vector_ang(X: np.ndarray, a: float, v: float, col: str = 'w') -> None:
     """
     Plot particle's vector of velocity in its corresponding position with arrow
     at the end using quiver style plot. Use position, angle and absolute velocity.
@@ -74,12 +74,13 @@ def plot_vector_ang(X: np.ndarray, a: float, v: float) -> None:
     # to make them in arrow shape, make headlength and headaxislenght non-zero
     plt.quiver([x], [y], [vx], [vy],
                units='width', angles='xy', scale_units='xy', scale = 1,
-               headaxislength=2, headlength=2, width=.005, color='w')
+               headaxislength=2, headlength=2, width=.005, color=col)
     return
 
 
 def plot_oscillator(
-        X: np.ndarray, p: float, f: float, dt: float, blink: bool
+        X: np.ndarray, p: float, f: float, dt: float, blink: bool,
+        col1: str = 'y', col2: str = 'g'
     ) -> None:
     """
     Plot particle in its corresponding position, and if it's meant to blink,
@@ -109,9 +110,9 @@ def plot_oscillator(
         if p > np.pi:
             p = 2* np.pi - p
         p /= np.pi
-        plt.scatter(x, y, color='y', marker='o', alpha=p)
+        plt.scatter(x, y, color=col1, marker='o', alpha=p)
 
-    plt.scatter(x, y, color='g', marker='.')
+    plt.scatter(x, y, color=col2, marker='.')
 
 
 def plot_trajectory(

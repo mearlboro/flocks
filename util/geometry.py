@@ -1,7 +1,7 @@
 #!/usr/bin/python
 from enum import Enum
 import numpy as np
-from math import atan2, pi, fmod, sin, cos, sqrt
+from math import atan2, pi, sin, cos, sqrt
 
 from typing import List, Tuple
 
@@ -36,10 +36,12 @@ def ang_mod(a: float) -> float:
     ------
     float representing angle in radians in interval (-pi, pi]
     """
-    if a == -pi:
-        a = pi
-    if a > pi or a < -pi:
-        a = fmod(a, pi)
+    a = atan2(sin(a), cos(a))
+
+    # if it needs to be in interval [0, 2pi)
+    #if a < 0:
+    #    a = abs(a) + 2 * (pi - abs(a))
+
     return a
 
 
@@ -77,7 +79,6 @@ def ang_to_vec(a: float) -> np.ndarray:
     ------
     numpy array of shape (2,) with the 2D coordinates of the vector's tip
     """
-
     a = ang_mod(a)
     x = np.array([cos(a), sin(a)])
 
