@@ -109,7 +109,7 @@ class FlockModel:
             system path to a folder containing the state of model variables, as
             returned by `mkdir`, to be parsed to extract model parameters
 
-                {name}_{bounds}_{neighbours}(_{paramname}{paramvalue})+(-{simID})?
+                {name}_{bounds}_{neighbours}(_{paramname}{paramvalue})+_seed(-{simID})?
 
             for example, if the root output path is '/out/txt', a Vicsek model
             with 10 particles in a 1x1 space, with periodic boundaries, metric
@@ -129,11 +129,12 @@ class FlockModel:
         if path[-1] == '/':
             path = path[:-1]
 
-        # parse the directory name to extract model parameters, excluding the ID
+        # parse directory name to extract model parameters, exclude seed and ID
         d  = os.path.basename(path).split('-')[0]
         ps = d.split('_')
+        seed = int(ps[-1])
         ps_dict = { re.findall('[a-z]+', p)[0]: float(re.findall('[0-9.]+', p)[0])
-                    for p in ps[3:] }
+                    for p in ps[3:-1] }
 
         print(f'Loading {ps[0]} model from {path} with params {ps_dict}')
         # loads all .txt files in the folder
@@ -153,7 +154,7 @@ class FlockModel:
         l = np.sqrt(n / ps_dict['rho'])
 
         # call constructor with the params above
-        model = cls(ps[0], n, l, EnumBounds[ps[1].upper()],
+        model = cls(ps[0], seed, n, l, EnumBounds[ps[1].upper()],
              EnumNeighbours[ps[2].upper()], 1, ps_dict)
 
         # then store variable trajectories in a trajectory dictionary
