@@ -103,7 +103,7 @@ class VicsekModel(FlockModel):
         ------
         updated Ai
         """
-        indexes = neighbours(i, self.X, self.r, self.neighbours)
+        indexes = neighbours(i, self.X, self.r, self.neighbours, self.bounds, self.l)
         Aavg = average_angles(self.A[indexes])
         dE = np.random.uniform(-self.e / 2, self.e / 2)
 

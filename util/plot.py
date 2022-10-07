@@ -109,6 +109,8 @@ def plot_oscillator(
         # bright when phase is pi
         if p > np.pi:
             p = 2* np.pi - p
+        elif p < 0:
+            p = abs(p)
         p /= np.pi
         plt.scatter(x, y, color=col1, marker='o', alpha=p)
 
@@ -284,7 +286,7 @@ def plot_state_particles_trajectories(
         t: int, Xt: np.ndarray, l: float,
         topology: EnumBounds,
         title: str, subtitle: str, path: str,
-        cmass: bool = False, sumvec: bool = False,
+        cmass: bool = False,
         save: bool = True, show: bool = False
     ) -> None:
     """

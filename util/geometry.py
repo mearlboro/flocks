@@ -128,6 +128,9 @@ def average_angles(A: np.ndarray) -> float:
     ------
     average direction as a float
     """
+    if not len(A):
+        raise ValueError("Must pass at least one angle to average")
+
     return atan2(sum(np.sin(A)), sum(np.cos(A)))
 
 
@@ -257,12 +260,14 @@ def neighbours(
         i: int,
         X: np.ndarray,
         r: float,
-        topology: EnumNeighbours = EnumNeighbours.METRIC
+        interactions: EnumNeighbours = EnumNeighbours.METRIC,
+        bounds: EnumBounds = EnumBounds.PERIODIC,
+        L: float = 0
     ) -> List[int]:
     """
     Get the neighbours of a given point of index i in the list of points X.
     Metric neighbours are within a given radius r and include i. Topological
-    neighbours are the nearest r objects to point i.
+    neighbours are the nearest r objects to point i, also including i.
 
     Params
     ------
@@ -274,8 +279,12 @@ def neighbours(
     r
         integer specifying radius for metric neighbours and the number
         of nearest points to retrieve for topological neighbours
-    topology
-        "metric" or "topological"
+    interactions
+        metric or topological
+    bounds
+        periodic or reflective
+    L
+        size of space, to be used for periodic boundaries
 
     Returns
     ------
@@ -288,18 +297,28 @@ def neighbours(
         raise ValueError("Index i must be smaller than number of particles N!")
     if r <= 0:
         raise ValueError("Radius r must be strictly positive")
+    if N == 1:
+        return [ 0 ]
 
     Xi = X[i, :]
 
-    if topology == EnumNeighbours.METRIC:
-        neighbours = [ j for j, Xj in enumerate(X) if np.linalg.norm(Xi - Xj, 2) < r ]
-    else:
+    if bounds == EnumBounds.PERIODIC:
+        if not L:
+            raise ValueError("L must be specified for periodic boundaries")
+
+    if interactions == EnumNeighbours.METRIC:
+        neighbours = [ j for j, Xj in enumerate(X)
+                         if metric_distance(Xi, Xj, L, bounds) <= r ]
+    elif interactions == EnumNeighbours.TOPOLOGICAL:
         if int(r) != r:
             raise ValueError("r must be an integer for topological neighbours")
         r = int(r)
         X_index = [ (j, X[j]) for j in range(0, N) ]
-        X_index.sort(key = lambda jXj: np.linalg.norm(Xi - jXj[1], 2))
+        X_index.sort(key = lambda jXj: metric_distance(Xi, jXj[1], L, bounds))
         neighbours = [ X_index[i][0] for i in range(0, r + 1) ]
+    else:
+        raise ValueError(
+            f"Interactions must be of type EnumNeighbours, but it's {interactions}")
 
     return neighbours
 
@@ -358,8 +377,40 @@ def periodic_diff(
     return res[1] if norm else res[0]
 
 
+def metric_distance(
+        x: np.ndarray, y: np.ndarray, L: float, bounds: EnumBounds
+    ) -> float:
+    """
+    Compute distance between two points, in either periodic boundaries or
+    bounded space
+
+    Params
+    ------
+    x
+        numpy array of shape (2,) with the coordinates of first point
+    y
+        numpy array of shape (2,) with the coordinates of first point
+    L
+        size of space
+    bounds
+        periodic or reflective
+
+    Returns
+    ------
+    float distance between two points
+    """
+    if bounds == EnumBounds.REFLECTIVE:
+        diff = x - y
+        return np.linalg.norm(diff, 2)
+    elif bounds == EnumBounds.PERIODIC:
+        return periodic_diff(x, y, L, True)
+    else:
+        raise ValueError(
+            f"Bounds must be of type EnumBounds, but it's {bounds}")
+
+
 def centre_of_mass(
-        X: np.ndarray, L: float, topology: EnumBounds
+        X: np.ndarray, L: float, bounds: EnumBounds
     ) -> np.ndarray:
     """
     Get coordinates of the centre of mass of all N points in the flock.
@@ -372,8 +423,8 @@ def centre_of_mass(
         a D-dimensional space of size l
     L
         size of space
-    topology
-        whether the space's boundaries are reflective or periodic
+    bounds
+        periodic or reflective
 
     Returns
     ------
@@ -381,16 +432,19 @@ def centre_of_mass(
     """
     (_, D) = X.shape
 
-    if topology == EnumBounds.PERIODIC:
+    if bounds == EnumBounds.PERIODIC:
         c = np.array([ periodic_mean(X[:, d], L) for d in range(D) ])
-    else:
+    elif bounds == EnumBounds.REFLECTIVE:
         c = np.mean(X, axis = 0)
+    else:
+        raise ValueError(
+            f"Bounds must be of type EnumBounds, but it's {bounds}")
 
     return c
 
 
 def relative_positions(
-        X: np.ndarray, c: np.ndarray, L: float, topology: EnumBounds
+        X: np.ndarray, c: np.ndarray, L: float, bounds: EnumBounds
     ) -> np.ndarray:
     """
     Compute N relative position vectors w.r.t. to a given point (can be centre
@@ -407,17 +461,20 @@ def relative_positions(
         numpy array of shape (D,) for the coordinates of the point of reference
     L
         size of space
-    topology
-        whether the space's boundaries are reflective or periodic
+    bounds
+        periodic or reflective
 
     Returns
     ------
     numpy array of shape (N, D) with relative position vectors
     """
-    if topology == EnumBounds.PERIODIC:
+    if bounds == EnumBounds.PERIODIC:
         R = np.array([ periodic_diff(x, c, L) for x in X ])
-    else:
+    elif bounds == EnumBounds.REFLECTIVE:
         R = np.array([ x - c for x in X ])
+    else:
+        raise ValueError(
+            f"Bounds must be of type EnumBounds, but it's {bounds}")
 
     return R
 

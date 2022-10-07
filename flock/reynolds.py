@@ -150,12 +150,14 @@ class ReynoldsModel(FlockModel):
         the current position is subtracted from the perceived centre of mass
         before the difference angle is computed.
         """
-        indexes = [ j for j in range(self.n) if j != i ]
-        c = centre_of_mass(self.X[indexes], self.l, self.bounds)
-        x = - relative_positions(self.X[i], c, self.l, self.bounds)[0]
-        a = bearing_to(self.A[i], x)
-
-        return a * self.a3
+        if self.n > 1:
+            indexes = [ j for j in range(self.n) if j != i ]
+            c = centre_of_mass(self.X[indexes], self.l, self.bounds)
+            x = - relative_positions(self.X[i], c, self.l, self.bounds)[0]
+            a = bearing_to(self.A[i], x)
+            return a * self.a3
+        else:
+            return 0
 
 
     def __new_A(self, i: int) -> Tuple[np.ndarray, float, float]:
@@ -171,8 +173,8 @@ class ReynoldsModel(FlockModel):
         ------
         updated angle
         """
-        indexes = neighbours(i, self.X, self.r, self.neighbours)
-        # the current boid's velocity or posiiton is not considered
+        indexes = neighbours(i, self.X, self.r, self.neighbours, self.bounds, self.l)
+        # the current boid's velocity or position is not considered
         indexes = [ j for j in indexes if j != i ]
 
         # update velocity angle only if there are any neighbours

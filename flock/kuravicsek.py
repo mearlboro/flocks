@@ -131,7 +131,7 @@ class KuramotoVicsekModel(FlockModel):
         ------
         updated Ai
         """
-        indexes = neighbours(i, self.X, self.r, self.neighbours)
+        indexes = neighbours(i, self.X, self.r, self.neighbours, self.bounds, self.l)
         Aavg = average_angles(self.A[indexes])
         dE = np.random.uniform(-self.e/2, self.e/2)
 
@@ -193,7 +193,7 @@ class KuramotoVicsekModel(FlockModel):
         ------
         updated Pi, a float between 0 and pi
         """
-        indexes = neighbours(i, self.X, self.r, self.neighbours)
+        indexes = neighbours(i, self.X, self.r, self.neighbours, self.bounds, self.l)
 
         Pi = self.P[i]
         Wi = 2 * np.pi * self.F[i]
