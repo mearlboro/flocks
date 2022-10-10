@@ -113,9 +113,10 @@ class FlockModel:
 
             for example, if the root output path is '/out/txt', a Vicsek model
             with 10 particles in a 1x1 space, with periodic boundaries, metric
-            neighbours and params rho = 0.1, eta = 0.5, r = 1 will use the path
+            neighbours and params rho = 0.1, eta = 0.5, r = 1 and seed 999 will
+            use the path
 
-                out/txt/Vicsek_periodic_metric_rho0.1_eta0.5_r1
+                out/txt/Vicsek_periodic_metric_rho0.1_eta0.5_r1_999
 
         Returns
         ------
@@ -136,7 +137,7 @@ class FlockModel:
         ps_dict = { re.findall('[a-z]+', p)[0]: float(re.findall('[0-9.]+', p)[0])
                     for p in ps[3:-1] }
 
-        print(f'Loading {ps[0]} model from {path} with params {ps_dict}')
+        print(f"Loading {ps[0]} model from {path} with params {ps_dict}")
         # loads all .txt files in the folder
         files = [f for f in os.listdir(path)
                    if os.path.isfile(os.path.join(path, f))
@@ -145,6 +146,8 @@ class FlockModel:
         if files:
             var_dict = { f.split('.')[0].upper(): load_var(os.path.join(path, f))
                         for f in files }
+        else:
+            print(f"No .txt files storing simulation results were found at {path}")
 
         # variables named x1, x2...  denote coordinates and should be combined
         Xvars = [ var_dict[x] for x in sorted(var_dict.keys()) if 'X' in x ]

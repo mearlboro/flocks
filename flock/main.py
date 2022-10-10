@@ -29,6 +29,8 @@ from typing import Any, Dict, List, Tuple
               help = 'Use neighbours in a radius r or nearest r neighbours')
 @click.option('--trajectories', is_flag = True, default = False,
               help = "If true draw particle with trajectories, otherwise velocity vectors")
+@click.option('--cmass', is_flag = True, default = False,
+              help = "If true draw trajectory of flock centre of mass")
 @click.option('--sumvec', is_flag = True, default = False,
               help = "If true draw particle velocity vectors and also their sum vector")
 @click.option('--saveimg', is_flag = True, default = False,
@@ -36,7 +38,7 @@ from typing import Any, Dict, List, Tuple
 def vicsek(
         s: int, t: int, n: int, l: float, e: float, v: float, r: float, dt: float,
         bounds: str, neighbours: str,
-        trajectories: bool, sumvec: bool,
+        trajectories: bool, cmass: bool, sumvec: bool,
         saveimg: bool
     ) -> None:
     """
@@ -75,11 +77,11 @@ def vicsek(
                 # remember all positions so far
                 Xt[i] = sim.X
                 plot_state_particles_trajectories(
-                    i, Xt, l, sim.bounds, sim.title, sim.subtitle, imgpath, True)
+                    i, Xt, l, sim.bounds, sim.title, sim.subtitle, imgpath, cmass)
                 # bug when saving the first image, so save it again
                 if (sim.t == 0):
                     plot_state_particles_trajectories(
-                        i, Xt, l, sim.bounds, sim.title, sim.subtitle, imgpath, True)
+                        i, Xt, l, sim.bounds, sim.title, sim.subtitle, imgpath, cmass)
             else:
                 print(f'{i}: saving system state to {imgpath}/')
                 plot_state_vectors(
