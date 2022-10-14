@@ -117,5 +117,12 @@ Lizier JT (2014). _"JIDT: An information-theoretic toolkit for studying the dyna
 To run an example emergence computation on random data
 
 ```
-$ python -m analysis.emergence_calculator
+$ python -m analysis.emergence
 ```
+
+or on an existing model's trajectories, say `Vicsek_periodic_metric_eta0.1_v0.1_r1.0_rho1.0`
+
+```
+$ python -m analysis.emergence --model out/img/Vicsek_periodic_metric_eta0.1_v0.1_r1.0_rho1.0
+```
+

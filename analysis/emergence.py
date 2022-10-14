@@ -6,23 +6,22 @@ Rosas FE*, Mediano PAM*, Jensen HJ, Seth AK, Barrett AB, Carhart-Harris RL, et
 al. (2020) Reconciling emergences: An information-theoretic approach to
 identify causal emergence in multivariate data. PLoS Comput Biol 16(12):
 e1008289.
-
-Pedro Mediano, Oct 2021
 """
 
 import click
 import jpype as jp
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 
 from typing import Callable, Iterable
 
 from flock.model import FlockModel
+from util.geometry import centre_of_mass
 from util import util
 
 
 INFODYNAMICS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'infodynamics.jar')
-SAMPLE_THRESHOLD = 20
 PSI_START = -5
 
 def javify(Xi: np.ndarray) -> jp.JArray:
@@ -57,9 +56,11 @@ def javify(Xi: np.ndarray) -> jp.JArray:
 class EmergenceCalculator():
     def __init__(self,
             use_correction: bool = True,
-            psi_buffer_size : int = 12,
+            use_filter: bool = True,
+            psi_buffer_size : int = 20,
             observation_window_size : int = -1,
-            use_local : bool = True
+            use_local : bool = True,
+            sample_threshold: int = 0
         ) -> None:
         """
         Construct the emergence calculator by setting member variables and
@@ -73,24 +74,32 @@ class EmergenceCalculator():
         ----------
         use_correction : bool
             Whether to use the 1st-order lattice correction for emergence
-            calculation.
+            calculation. (default: true)
+        use_filter : bool
+            Whether to use the median filter (default: true).
         psi_buffer_size : int
             Number of past emergence values used for the median filter
-            (default: 12).
+            (default: 20).
         observation_window_size : int
             Number of past observations to take into account for the calculation
             of psi. If negative or zero, use all past data (default: -1).
         use_local : bool
             If true, computes psi the local (i.e. pointwise) mutual info of
             the latest sample. If false, uses the standard (i.e. average) mutual
-            info of the observation window (Default: true).
+            info of the observation window (default: true).
+        sample_threshold : int
+            Number of timesteps to wait before calculation, at least as many as
+            the dimenstions of the system. If smaller, will automatically use a
+            value equal to the number of the variables in the system. (default: 0)
         """
 
         self.is_initialised = False
         self.sample_counter = 0
 
+        self.use_filter = use_filter
         self.use_correction = use_correction
         self.psi_buffer_size = psi_buffer_size
+        self.sample_threshold = sample_threshold
         self.past_psi_vals = [PSI_START] * psi_buffer_size
 
         self.observation_window_size = observation_window_size
@@ -102,13 +111,21 @@ class EmergenceCalculator():
         if not jp.isJVMStarted():
             jp.startJVM(jp.getDefaultJVMPath(), '-ea', '-Djava.class.path=%s'%INFODYNAMICS_PATH)
 
-        print(f'Successfully initialised EmergenceCalculator with buffer {psi_buffer_size} and observation window {observation_window_size}.')
+        print(f'Successfully initialised EmergenceCalculator.')
+        print(f' observations:   {observation_window_size},')
+        print(f' use correction: {use_correction}')
+        print(f' use local:      {use_local}')
+        print(f' use filter:     {use_filter}')
+        if use_filter:
+            print(f' buffer: {psi_buffer_size}')
 
 
     def initialise_calculators(self, X: np.ndarray, V: np.ndarray) -> None:
         """
         """
         self.N = len(X)
+        if self.sample_threshold < self.N:
+            self.sample_threshold = self.N
 
         V = V[np.newaxis, :]
         self.xmiCalcs = []
@@ -193,7 +210,7 @@ class EmergenceCalculator():
 
         else:
             self.update_calculators(V)
-            if self.sample_counter > SAMPLE_THRESHOLD:
+            if self.sample_counter > self.sample_threshold:
                 psi = self.compute_psi(V)
 
         self.past_X = X
@@ -203,12 +220,12 @@ class EmergenceCalculator():
         self.past_psi_vals.append(psi)
         if len(self.past_psi_vals) > self.psi_buffer_size:
             self.past_psi_vals.pop(0)
-        psi_filt = np.nanmedian(self.past_psi_vals)
 
-        print(f'Unfiltered Psi {self.sample_counter}: {psi}')
-        print(f'Filtered Psi {self.sample_counter}: {psi_filt}')
-
-        return psi_filt
+        if self.use_filter:
+            psi_filt = np.nanmedian(self.past_psi_vals)
+            return psi_filt
+        else:
+            return psi
 
 
     def exit(self) -> None:
@@ -220,32 +237,86 @@ class EmergenceCalculator():
             jp.shutdownJVM()
 
 
+
+def plot_psi(
+        ts: np.ndarray, psis: np.ndarray, use_correction: bool,
+        use_local: bool, use_filter: bool, obs_win: int, show: bool
+    ) -> None:
+
+    label = 'Using local MI' if use_local else 'Using average MI'
+    label += ' and all past states' if obs_win <= 0 else f' and {obs_win} past states'
+    if use_filter:
+        label += ' (median filtered)'
+    ylabel = '(1,1)' if use_correction else '(1)'
+    ylabel = '$\\Psi^{' + ylabel + '}(\\tilde{x})$'
+
+    fig = plt.figure()
+    plt.plot(ts, psis, label = label)
+    plt.xlabel('t (s)')
+    plt.ylabel(ylabel)
+    plt.legend()
+
+    if show:
+        plt.show()
+
+    return fig
+
+
 @click.command()
 @click.option('--model',  help = 'Directory where system trajectories are stored for the model')
-@click.option('--threshold', help = 'Number of timesteps to wait before calculation, at least as many as the dimenstions of the system')
-def test(model: str = '', threshold: int = SAMPLE_THRESHOLD) -> None:
+@click.option('--use-correction', is_flag = True, default = True,
+              help = 'If true, use first-order lattice correction for emergence calculation.')
+@click.option('--use-local',  is_flag = True, default = False,
+              help = 'If true, use first-order lattice correction for emergence calculation.')
+@click.option('--use-filter', is_flag = True, default = True,
+              help = 'If true, apply median filter to the last n computations')
+@click.option('--filter-buffer', default = 5,
+              help = 'Number of timesteps to filter over')
+@click.option('--observation-window', default = -1,
+              help = 'Number of timesteps used for calculating Psi. Use all past data if <= 0.')
+@click.option('--threshold',
+              help = 'Number of timesteps to wait before calculation, at least as many as the dimenstions of the system')
+def test(model: str, use_correction: bool, use_local: bool, use_filter: bool,
+        filter_buffer: int, observation_window: int, threshold: int) -> None:
     """
     Test the emergence calculator on the trajectories specified in `filename`.
     """
-    calc = EmergenceCalculator()
+
+    ts   = []
+    psis = []
+    thres = 0
 
     if model:
         m = FlockModel.load(model)
         X = m.traj['X']
-        V = np.mean(X, axis=1)
+        V = np.array([ centre_of_mass(Xi, m.l, m.bounds) for Xi in X ])
+        ts = np.arange(len(X)) / m.dt
+
+        calc = EmergenceCalculator(
+            use_correction, use_filter, filter_buffer, observation_window, use_local)
         for i in range(len(X)):
             psi = calc.update_and_compute(X[i], V[i])
             if psi:
-                print(f't{i}: {psi}')
+                psis.append(psi)
+        thres = len(X[0]) + filter_buffer
+
+        calc.exit()
     else:
+        calc = EmergenceCalculator(
+            use_correction, use_filter, filter_buffer, observation_window, use_local)
+
         X = np.random.randn(100,10,2)
         V = np.mean(X, axis=1)
-        for i in range(len(X)):
+        ts = range(100)
+        for i in ts:
             psi = calc.update_and_compute(X[i], V[i])
-            if psi:
-                print(f't{i}: {psi}')
+            psis.append(psi)
 
-    calc.exit()
+        thres = 10 + filter_buffer
+        calc.exit()
+
+    plot_psi(ts[thres:], psis[thres:], use_correction, use_local, use_filter, observation_window,
+            show=True)
 
 
 if __name__ == "__main__":
