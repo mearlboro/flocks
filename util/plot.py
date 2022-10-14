@@ -10,6 +10,7 @@ def prepare_state_plot(l: float) -> None:
     """
     setup plot for an l-sized 2D world with black background
     """
+    plt.rcParams['figure.figsize'] = 7,5
     plt.axis([0,l,0,l])
     plt.style.use("dark_background")
     frame = plt.gca()
