@@ -9,7 +9,127 @@ from util.util     import load_var
 from typing import Any, Dict, List, Tuple
 
 
-class FlockModel:
+class Flock:
+    """
+    An object to hold the results of an experimental trial which has similar
+    data to the simulations in FlockModel.
+
+    Assuming that experimental data is given in the same format as the simulation
+    outputs, go through given directory and load trajectories and angles from an
+    experiment in the same data structures as trajectories and angles from a
+    simulation.
+
+    Experimental data assumes l = 1, and interactions are unknown, so there is
+    no equivalent for r and neighbourhood is unknown. The time unit is also
+    assumed to be discrete dt = 1 unless stated otherwise. Bounds are always
+    reflective.
+    """
+    def __init__(self, name: str, segment: str, n: int, l: float,
+            dt: float = 1, params: dict = {}
+        ) -> None:
+        """
+        Initialise and populate class with known parameters of an experiment and
+        the trajectories, angles and velocities of flocking behaviour obtained
+        during the experiment.
+
+        Params
+        ------
+        name
+            name of the experiment
+        segment
+            name of segment or trial to differentiate between different instances
+            of the experiment
+        n
+            number of particles in the system
+        l
+            continuous space is LxL in size, with reflective boundaries
+        dt
+            time unit
+        params
+            dictionary containing any useful parameters for the experiment that
+            should be tracked down during analysis
+        """
+        self.n  = n
+        self.l  = l
+        self.dt = dt
+        self.r  = 0
+
+        self.bounds = EnumBounds.REFLECTIVE
+        self.neighbours = EnumNeighbours.UNKNOWN
+
+        # initialise parameters
+        rho = round(float(n) / l ** 2, 4) # density
+        params['rho'] = rho
+
+        self.params = params
+        params_strs = [ f'{p}{v}' for p,v in params.items() ]
+
+        self.string   = f"{name}_{segment}"
+        self.title    = f"{name} experiment, {segment}, {n} subjects"
+        self.subtitle = ', '.join([ f'${p}$ = {v}' if len(p) not in range(3, 7)
+                                    else f'$\\{p}$ = {v}'
+                                    for p,v in params.items() ])
+        self.t    = 0
+        self.traj = {}
+
+
+    @classmethod
+    def load(cls, path: str, dt: float, params: dict = {}) -> 'Flock':
+        """
+        Factory method to create a flock-like object with trajectories produced
+        by an experment using information at the given path. The folder contains
+        trajectories for all relevant variables and is named according to the
+        experiment's name and segment/trial from which data was collected.
+
+        Variables are stored as numpy 2D array of shape (T, N) or (T, N, D), where
+        X[t, i] or X[t, i, :] is the value of system variable Xi at time t
+
+        This function will initialise the object as well as append each
+        state at each timestep to a 4-dimensional trajectory numpy array
+
+        It is likely that the experimental data available may be just of positions
+        but angles and velocities are also relevant so they are to be constructed
+        based on the positions.
+
+        Params
+        ------
+        path
+            system path to a folder containing experimental data
+
+        Returns
+        ------
+        a Flock with trajectories
+        """
+
+        if not os.path.isdir(path):
+            raise ValueError('No folder at the given path')
+            exit(0)
+
+        if path[-1] == '/':
+            path = path[:-1]
+
+        exp_name = path.split('/')[-1].split('_')[0]
+        segment  = '_'.join(path.split('/')[-1].split('_')[1:])
+
+        X1t = load_var(f"{path}/x1.txt")
+        X2t = load_var(f"{path}/x2.txt")
+        At  = load_var(f"{path}/a.txt")
+        Vt  = load_var(f"{path}/v.txt")
+        (t, n) = At.shape
+
+        flock = Flock(exp_name, segment, n, 1, dt)
+        flock.t = t
+        flock.traj['X'] = np.array([ np.stack([ X[i]
+                            for X in [X1t, X2t] ], axis = 1)
+                            for i in range(t) ]).astype(float)
+        flock.traj['A'] = At
+        flock.traj['V'] = Vt
+
+        return flock
+
+
+
+class FlockModel(Flock):
     """
     Setup the parameters for a flocking model simulation. The model simulates
     the behaviour of moving particles in a 2D continuous space in discrete time
@@ -22,7 +142,8 @@ class FlockModel:
     def __init__(self, name: str, seed: int, n: int, l: float,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
                  dt: float = 1,
-                 params: Dict[str, float] = {}) -> None:
+                 params: Dict[str, float] = {}
+        ) -> None:
         """
         Initialise model with parameters, then create 2D coordinate array X for
         the N particles in the lxl space. The coordinates are distributed
@@ -38,7 +159,7 @@ class FlockModel:
         n
             number of particles in the system
         l
-            continuous space is LxL in size, with periodic boundaries
+            continuous space is LxL in size
         bounds
             enum value to specify whether particles wrap around boundaries
             (PERIODIC) or bounce off them (REFLECTIVE)
@@ -69,14 +190,15 @@ class FlockModel:
 
         # we save the model name and params as a string, to be used when saving
         # and we also typeset a figure title and subtitle
-        self.string   = f"{name}_{bounds_str}_{neighbours_str}_{'_'.join(params_strs)}_{seed}"
+        self.string   = f"{name}_{bounds_str}_{neighbours_str}_{'_'.join(params_strs)}-{seed}"
         self.title    = f"{name} model, {bounds_str} bounds, {neighbours_str} neighbours"
         self.subtitle = ', '.join([ f'${p}$ = {v}' if len(p) not in range(3, 7)
                                     else f'$\\{p}$ = {v}'
                                     for p,v in params.items() ])
 
         # initialise seed
-        np.random.seed(seed)
+        if seed >= 0:
+            np.random.seed(seed)
 
         # initialise particle positions spread uniformly at random
         self.X = np.random.uniform(0, l, size = (n, 2))
@@ -133,9 +255,16 @@ class FlockModel:
         # parse directory name to extract model parameters, exclude seed and ID
         d  = os.path.basename(path).split('-')[0]
         ps = d.split('_')
-        seed = int(ps[-1])
+
+        # some simulations may not have seed information
+        seed = os.path.basename(path).split('-')[-1]
+        try:
+            seed = int(seed)
+        except:
+            seed = -1
+
         ps_dict = { re.findall('[a-z]+', p)[0]: float(re.findall('[0-9.]+', p)[0])
-                    for p in ps[3:-1] }
+                    for p in ps[3:] }
 
         print(f"Loading {ps[0]} model from {path} with params {ps_dict}")
         # loads all .txt files in the folder
@@ -166,6 +295,8 @@ class FlockModel:
         for var in var_dict.keys():
             if 'X' not in var:
                 model.traj[var] = var_dict[var]
+
+        model.t = t
 
         return model
 
