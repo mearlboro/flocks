@@ -34,7 +34,7 @@ def __vicsek_order(
     step, valued 0 if all particles are moving chaotically and 1 if they align
     """
     if Vt is not None:
-        vel = np.array([ [ ang_to_vec(a) * v
+        vel = np.array([ [ ang_to_vec(a) * v / np.mean(V)
                            for a, v in zip(A,  V)  ]
                            for A, V in zip(At, Vt) ])
     else:
@@ -102,8 +102,7 @@ def __mean_var_dist_cmass(
     """
     (T, N, D) = Xt.shape
 
-    cmass = [ centre_of_mass(X, L, bounds)
-              for X in Xt ]
+    cmass = [ centre_of_mass(X, L, bounds) for X in Xt ]
     dist  = np.array([ [ metric_distance(x, c, L, bounds)
                          for x in X ]
                          for (X, c) in zip(Xt, cmass) ])
@@ -180,79 +179,26 @@ def __mean_dist_nearest(
     return avg_dist
 
 
-def __psi_cmass(
-        Xt: np.ndarray,
-        cmass: np.ndarray
-    ) -> Tuple[Dict[int, float], np.ndarray, np.ndarray]:
-    """
-    Given the positions of all particles in the system, compute the emergence
-    Psi for the centre of mass of the system.
-
-    Params
-    ------
-    Xt : numpy array of shape (T, N, D)
-        positions for all the system variables across all time points
-    cmass : numpy array of shape (N, D)
-        positions for the centre of mass
-
-    Returns
-    ------
-    A tuple of
-    - a dictionary with the timestamps and highest and lowest Psi
-    - a numpy arrays of shape (N,) containing Psi values with global observations
-    - a numpy arrays of shape (N,) containing Psi values with local observations
-    """
-    calc_loc  = EmergenceCalculator(use_filter = False, use_local = True)
-    calc_loc2 = EmergenceCalculator(use_filter = True,  use_local = True)
-    calc_avg  = EmergenceCalculator(use_filter = False, use_local = False)
-
-    (T, N, _) = Xt.shape
-
-    loc  = []
-    loc2 = []
-    avg  = []
-    for t in range(T):
-        psi = calc_avg.update_and_compute(Xt[t], cmass[t])
-        avg.append(psi)
-        psi = calc_loc.update_and_compute(Xt[t], cmass[t])
-        loc.append(psi)
-        psi = calc_loc2.update_and_compute(Xt[t], cmass[t])
-        loc2.append(psi)
-    # exiting one calc gracefully closes the JVM for all of them
-    calc_loc.exit()
-
-    psi_dict = dict()
-    psi_ind = [ (i, loc[i]) for i in range(0, T) ]
-    psi_ind = psi_ind[::10]
-    psi_ind.sort(key = lambda iPsi: iPsi[1], reverse = True)
-    psi_dict.update({ i: Psi for i, Psi in psi_ind[:2] })
-    psi_ind.sort(key = lambda iPsi: iPsi[1])
-    psi_dict.update({ i: Psi for i, Psi in psi_ind[:2] })
-
-    # the first N+buffer observations do not have a Psi computation
-    thres = N if not calc_loc.use_filter else N + calc_loc.psi_buffer_size
-    loc  = np.array(loc[N:])
-    loc2 = np.array(loc2[N:])
-    avg  = np.array(avg[N:])
-
-    return psi_dict, loc, loc2, avg
-
-
 def param(
+        param_name: str,
         Xt: np.ndarray,
         At: np.ndarray,
         L: int,
         r: float,
         bounds: EnumBounds,
         Vt: np.ndarray = None,
-        v: float = 1.0
+        v: float = 1.0,
     ) -> Dict[str, Any]:
     """
     Compute relevant order parameters given the trajectories of a system of self
-    propelled particles
+    propelled particles. Implemented in this way to allow different order params
+    to be computed in parallel for multiple systems if needed.
 
     Params
     ------
+    param_name: str
+        name of order parameter to be computed. If null, then return all order
+        parameters as a dict
     Xt : numpy array of shape (T, N, 2)
         positions for all the system variables across all time points
     At : numpy array of shape (T, N)
@@ -271,49 +217,73 @@ def param(
 
     Returns
     ------
-    dict of numpy arrays, for each time step of the simulation, with the exception
-    of the last item which is a dict
+    dict with parameter name as key, and numpy array as value. If no `param_name`
+    is given, then all order parameters are returned in the format below, other
+    wise only the specified one is returned:
+
         'vicsek_order':      (T,) Vicsek order parameter
         'mean_angle':        (T,) mean orientation
-        'std_angle':         (T,) std dev of orientation
+        'var_angle':         (T,) variance (spread) of orientation
         'cmass':             (T,D) coordinates of flock centre of mass
         'mean_dist_cmass':   (T,) mean distance from centre of mass
-        'std_dist_cmass':    (T,) std dev of distance from centre of mass
+        'var_dist_cmass':    (T,) variance (spread) of distance from centre of mass
         'mean_neighbours':   (T,) mean number of interaction neighbours
         'mean_dist_nearest': (T,) mean distance to nearest neighbour
-        'psi_cmass_loc':     (T,) Psi of centre of mass computed with local MI, unfiltered
-        'psi_cmass_loc2':    (T,) Psi of centre of mass computed with local MI, filtered
-        'psi_cmass_avg':     (T,) Psi of centre of mass computed with average MI
-        'psi_cmass_minmax:   (T,) Dict of int float pairs containing the time of highest
-                                  unfiltered local Psi and the Psi value
     """
     m = dict()
-
     import time
-    start = time.time()
-    print('Computing Vicsek order parameter')
-    m['vicsek_order'] = __vicsek_order(At, Vt, v)
-    print("Time elapsed: {}s".format(int(time.time() - start)))
 
-    print('Computing mean & standard deviation of angle')
-    m['mean_angle'], m['var_angle'] = __mean_var_angle(At)
-    print("Time elapsed: {}s".format(int(time.time() - start)))
+    if not param_name:
+        print('Computing Vicsek order parameter')
+        start = time.time()
+        m['vicsek_order'] = __vicsek_order(At, Vt, v)
+        print("Time elapsed: {}s".format(int(time.time() - start)))
 
-    print('Computing mean & standard deviation of distance from cmass')
-    m['cmass'], m['mean_dist_cmass'], m['var_dist_cmass'] = __mean_var_dist_cmass(Xt, bounds, L)
-    print("Time elapsed: {}s".format(int(time.time() - start)))
+        print('Computing mean & standard deviation of angle')
+        start = time.time()
+        m['mean_angle'], m['var_angle'] = __mean_var_angle(At)
+        print("Time elapsed: {}s".format(int(time.time() - start)))
 
-    print('Computing mean number of neighbours')
-    m['mean_neighbours']   = __mean_neighbours(Xt, r, bounds, L)
-    print("Time elapsed: {}s".format(int(time.time() - start)))
+        print('Computing mean & standard deviation of distance from cmass')
+        start = time.time()
+        m['cmass'], m['mean_dist_cmass'], m['var_dist_cmass'] = __mean_var_dist_cmass(Xt, bounds, L)
+        print("Time elapsed: {}s".format(int(time.time() - start)))
 
-    print('Computing mean distance to nearest neighbours')
-    m['mean_dist_nearest'] = __mean_dist_nearest(Xt, bounds, L)
-    print("Time elapsed: {}s".format(int(time.time() - start)))
+        print('Computing mean number of neighbours')
+        start = time.time()
+        m['mean_neighbours']   = __mean_neighbours(Xt, r, bounds, L)
+        print("Time elapsed: {}s".format(int(time.time() - start)))
 
-    print('Computing Psi for cmass')
-    m['psi_cmass_minmax'], m['psi_cmass_loc'], m['psi_cmass_loc2'], m['psi_cmass_avg'] = __psi_cmass(Xt, m['cmass'])
-    print("Time elapsed: {}s".format(int(time.time() - start)))
+        print('Computing mean distance to nearest neighbours')
+        start = time.time()
+        m['mean_dist_nearest'] = __mean_dist_nearest(Xt, bounds, L)
+        print("Time elapsed: {}s".format(int(time.time() - start)))
+
+    elif 'vicsek' in param_name:
+        print('Computing Vicsek order parameter')
+        m['vicsek_order'] = __vicsek_order(At, Vt, v)
+
+    elif 'angle' in param_name:
+        print('Computing mean & standard deviation of angle')
+        m['mean_angle'], m['var_angle'] = __mean_var_angle(At)
+
+    elif 'cmass' in param_name:
+        print('Computing cmass')
+        m['cmass'] = [ centre_of_mass(X, L, bounds) for X in Xt ]
+
+    elif 'dist_cmass' in param_name:
+        print('Computing mean & standard deviation of distance from cmass')
+        _, m['mean_dist_cmass'], m['var_dist_cmass'] = __mean_var_dist_cmass(Xt, bounds, L)
+
+    elif 'mean_neighbours' in param_name:
+        print('Computing mean number of neighbours')
+        m['mean_neighbours']   = __mean_neighbours(Xt, r, bounds, L)
+
+    elif 'mean_dist_nearest' in param_name:
+        print('Computing mean distance to nearest neighbours')
+        m['mean_dist_nearest'] = __mean_dist_nearest(Xt, bounds, L)
+
+    else:
+        raise ValueError(f"Param {param_name} not supported")
 
     return m
-

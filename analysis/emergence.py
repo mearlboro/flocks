@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-from typing import Callable, Iterable
+from typing import Callable, Dict, Iterable, List, Tuple, Union
 
 from flock.model import FlockModel
 from util.geometry import centre_of_mass
@@ -23,6 +23,23 @@ from util import util
 
 INFODYNAMICS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'infodynamics.jar')
 PSI_START = -5
+
+def startJVM() -> None:
+    """
+    Start Java Virtual Machine to run Java code inside this Python repository
+    """
+    if not jp.isJVMStarted():
+        print('Starting JVM...')
+        jp.startJVM(jp.getDefaultJVMPath(), '-ea', '-Djava.class.path=%s'%INFODYNAMICS_PATH)
+
+def stopJVM() -> None:
+    """
+    Gracefully exit Java Virtual Machine
+    """
+    if jp.isJVMStarted():
+        print('Shutting down JVM...')
+        jp.shutdownJVM()
+
 
 def javify(Xi: np.ndarray) -> jp.JArray:
     """
@@ -55,12 +72,13 @@ def javify(Xi: np.ndarray) -> jp.JArray:
 
 class EmergenceCalculator():
     def __init__(self,
+            decomposition: bool = True,
             use_correction: bool = True,
             use_filter: bool = True,
             psi_buffer_size : int = 20,
             observation_window_size : int = -1,
             use_local : bool = True,
-            sample_threshold: int = 0
+            sample_threshold: int = 0,
         ) -> None:
         """
         Construct the emergence calculator by setting member variables and
@@ -72,6 +90,9 @@ class EmergenceCalculator():
 
         Parameters
         ----------
+        decomposition : bool
+            Whether to return both the synergy and redundancy, or just the
+            synergy-redundancy index (i.e. Psi = syn - red)
         use_correction : bool
             Whether to use the 1st-order lattice correction for emergence
             calculation. (default: true)
@@ -96,23 +117,26 @@ class EmergenceCalculator():
         self.is_initialised = False
         self.sample_counter = 0
 
+        self.decomposition = decomposition
         self.use_filter = use_filter
         self.use_correction = use_correction
         self.psi_buffer_size = psi_buffer_size
         self.sample_threshold = sample_threshold
+
         self.past_psi_vals = [PSI_START] * psi_buffer_size
 
         self.observation_window_size = observation_window_size
+
         self.observations_V = []
         self.observations_X = []
 
         self.use_local = use_local
 
-        if not jp.isJVMStarted():
-            jp.startJVM(jp.getDefaultJVMPath(), '-ea', '-Djava.class.path=%s'%INFODYNAMICS_PATH)
+        startJVM()
 
         print(f'Successfully initialised EmergenceCalculator.')
-        print(f' observations:   {observation_window_size},')
+        print(f' decomposition:  {decomposition}')
+        print(f' observations:   {observation_window_size}')
         print(f' use correction: {use_correction}')
         print(f' use local:      {use_local}')
         print(f' use filter:     {use_filter}')
@@ -122,10 +146,22 @@ class EmergenceCalculator():
 
     def initialise_calculators(self, X: np.ndarray, V: np.ndarray) -> None:
         """
+        Initialise calculators of mutual information for the number of
+        variables in the current system.
+
+        Params
+        ------
+        X
+            system micro variables of shape (N, T) for N components in the
+            system
+        V
+            candidate emergence feature: D-dimensional system macro variable of
+            shape (D, T)
         """
         self.N = len(X)
         if self.sample_threshold < self.N:
             self.sample_threshold = self.N
+        print(f' threshold:      {self.sample_threshold}')
 
         V = V[np.newaxis, :]
         self.xmiCalcs = []
@@ -144,6 +180,15 @@ class EmergenceCalculator():
 
     def update_calculators(self, V: np.ndarray) -> None:
         """
+        Add system trajectories to the mutual information calculators so that
+        the distributions of the system variables can be estimated for computing
+        the mutual information.
+
+        Params
+        ------
+        V
+            candidate emergence feature: D-dimensional system macro variable of
+            shape (D, T)
         """
         jV = javify(V)
         jVp = javify(self.past_V)
@@ -169,49 +214,102 @@ class EmergenceCalculator():
                     calc.addObservations(jXip, jV)
 
 
-    def compute_psi(self, V: np.ndarray) -> float:
+    def compute_psi(self, V: np.ndarray) -> Tuple[float, float, float]:
         """
+        Using the observations stored in the mutual information calculators,
+        estimate distributions and mutual information between micro variables
+        Xi at different time instants, as well as the mutual information
+        between them and the macroscopic variable V, and between V itself at
+        different time instants.
+
+        The number of past values is given by `observation_window`.
+
+        Params
+        ------
+        X
+            system micro variables of shape (N, T) for N components in the
+            system
+        V
+            candidate emergence feature: D-dimensional system macro variable of
+            shape (D, T)
+
+        Returns
+        ------
+        synergy
+            mutual information between current and past values of V
+        redundancy
+            mutual information between past values of each micro variable X and
+            current value of V
+        correction
+            the minimal mutual information between current and past values of X
+            multiplied by N-1, to correct (if needed) the multiple counting of
+            unique information in the redundancy term
         """
         self.vmiCalc.finaliseAddObservations()
         jV = javify(V)
 
+        syn, red, corr = 0, 0, 0
         if self.use_local:
-            psi = self.vmiCalc.computeLocalUsingPreviousObservations(
+            syn = self.vmiCalc.computeLocalUsingPreviousObservations(
                     javify(self.past_V), jV)[0]
+            red = 0
             for Xip,calc in zip(self.past_X, self.xmiCalcs):
                 calc.finaliseAddObservations()
-                psi -= calc.computeLocalUsingPreviousObservations(javify(Xip), jV)[0]
-
+                red += calc.computeLocalUsingPreviousObservations(javify(Xip), jV)[0]
             if self.use_correction:
                 marginal_mi = [ calc.computeAverageLocalOfObservations()
                                 for calc in self.xmiCalcs ]
-                psi += (self.N - 1) * np.min(marginal_mi)
+                corr += (self.N - 1) * np.min(marginal_mi)
 
         else:
-            psi = self.vmiCalc.computeAverageLocalOfObservations()
+            syn = self.vmiCalc.computeAverageLocalOfObservations()
             for calc in self.xmiCalcs:
                 calc.finaliseAddObservations()
-                psi -= calc.computeAverageLocalOfObservations()
-
+                red += calc.computeAverageLocalOfObservations()
             if self.use_correction:
                 marginal_mi = [ calc.computeAverageLocalOfObservations()
                                 for calc in self.xmiCalcs ]
-                psi += (self.N - 1) * np.min(marginal_mi)
+                corr += (self.N - 1) * np.min(marginal_mi)
 
-        return psi
+        return syn, red, corr
 
 
-    def update_and_compute(self, X: Iterable[np.ndarray], V: np.ndarray) -> float:
+    def update_and_compute(self,
+            X: Iterable[np.ndarray], V: np.ndarray
+        ) -> Union[float, Tuple[float, float, float]]:
         """
+        Add observations to calculators (using update_calculators) then
+        compute synergy and redundancy, and return Psi as specified in
+        the class parameters.
+
+        Params
+        ------
+        X
+            system micro variables of shape (N, T) for N components in the
+            system
+        V
+            candidate emergence feature: D-dimensional system macro variable of
+            shape (D, T)
+
+        Returns
+        ------
+        if `decomposition` is set, 3 floats representing synergy, redundancy,
+            and the correction.
+        otherwise, returns one float, Psi = syn - red + corr, which may be
+        median filtered if `filter` is set.
+        if `use_correction` is not set, corr is always 0.
         """
         psi = PSI_START
+        syn, red, corr = 0, 0, 0
+
         if not self.is_initialised:
             self.initialise_calculators(X, V)
 
         else:
             self.update_calculators(V)
             if self.sample_counter > self.sample_threshold:
-                psi = self.compute_psi(V)
+                syn, red, corr = self.compute_psi(V)
+                psi = syn - red + corr
 
         self.past_X = X
         self.past_V = V
@@ -221,6 +319,8 @@ class EmergenceCalculator():
         if len(self.past_psi_vals) > self.psi_buffer_size:
             self.past_psi_vals.pop(0)
 
+        if self.decomposition:
+            return syn, red, corr
         if self.use_filter:
             psi_filt = np.nanmedian(self.past_psi_vals)
             return psi_filt
@@ -228,32 +328,39 @@ class EmergenceCalculator():
             return psi
 
 
-    def exit(self) -> None:
-        """
-        Gracefully shut down JVM. Call whenever done with the calculator.
-        """
-        if jp.isJVMStarted():
-            print('Shutting down JVM...')
-            jp.shutdownJVM()
-
-
-
 def plot_psi(
         ts: np.ndarray, psis: np.ndarray, use_correction: bool,
         use_local: bool, use_filter: bool, obs_win: int, show: bool
     ) -> None:
 
-    label = 'Using local MI' if use_local else 'Using average MI'
+    label = 'Using pointwise MI' if use_local else 'Using Shannon MI'
     label += ' and all past states' if obs_win <= 0 else f' and {obs_win} past states'
     if use_filter:
         label += ' (median filtered)'
-    ylabel = '(1,1)' if use_correction else '(1)'
-    ylabel = '$\\Psi^{' + ylabel + '}(\\tilde{x})$'
 
     fig = plt.figure()
-    plt.plot(ts, psis, label = label)
+
+    if len(psis[0]) == 1:
+        plt.plot(ts, psis, label = label)
+
+        ylabel = '(1,1)' if use_correction else '(1)'
+        ylabel = '$\\Psi^{' + ylabel + '}(\\tilde{x})$'
+        plt.ylabel(ylabel)
+    elif len(psis[0]) > 1:
+        # the decomposition is given as opposed to the value so plot that
+        syn = [ p[0] for p in psis ]
+        red = [ p[1] for p in psis ]
+        cor = [ p[2] for p in psis ]
+        psi = [ s - r + c for (s, r, c) in psis ]
+
+        plt.plot(ts, syn, label = 'Synergy', linewidth = 1)
+        plt.plot(ts, red, label = 'Redundancy', linewidth = 1)
+        if not all(c == 0 for c in cor):
+            plt.plot(ts, cor, label = 'Lattice correction',
+                     linewidth = 1, linestyle = 'dashed')
+        plt.plot(ts, psi, label = 'Psi', linewidth = 2)
+
     plt.xlabel('t (s)')
-    plt.ylabel(ylabel)
     plt.legend()
 
     if show:
@@ -264,10 +371,12 @@ def plot_psi(
 
 @click.command()
 @click.option('--model',  help = 'Directory where system trajectories are stored for the model')
-@click.option('--use-correction', is_flag = True, default = True,
+@click.option('--decomposition', is_flag = True, default = True,
+              help = 'If true, decompose Psi into the synergy, redundancy, and correction.')
+@click.option('--use-correction', is_flag = True, default = False,
               help = 'If true, use first-order lattice correction for emergence calculation.')
 @click.option('--use-local',  is_flag = True, default = False,
-              help = 'If true, use first-order lattice correction for emergence calculation.')
+              help = 'If true, use pointwise mutual information for emergence calculation.')
 @click.option('--use-filter', is_flag = True, default = True,
               help = 'If true, apply median filter to the last n computations')
 @click.option('--filter-buffer', default = 5,
@@ -276,15 +385,19 @@ def plot_psi(
               help = 'Number of timesteps used for calculating Psi. Use all past data if <= 0.')
 @click.option('--threshold',
               help = 'Number of timesteps to wait before calculation, at least as many as the dimenstions of the system')
-def test(model: str, use_correction: bool, use_local: bool, use_filter: bool,
-        filter_buffer: int, observation_window: int, threshold: int) -> None:
+def test(
+        model: str, decomposition: bool, use_correction: bool, use_local: bool,
+        use_filter: bool, filter_buffer: int, observation_window: int, threshold: int
+    ) -> None:
     """
-    Test the emergence calculator on the trajectories specified in `filename`.
+    Test the emergence calculator on the trajectories specified in `filename`, or
+    on a random data stream.
     """
 
     ts   = []
     psis = []
-    thres = 0
+    if not threshold:
+        threshold = 0
 
     if model:
         m = FlockModel.load(model)
@@ -292,18 +405,16 @@ def test(model: str, use_correction: bool, use_local: bool, use_filter: bool,
         V = np.array([ centre_of_mass(Xi, m.l, m.bounds) for Xi in X ])
         ts = np.arange(len(X)) / m.dt
 
-        calc = EmergenceCalculator(
-            use_correction, use_filter, filter_buffer, observation_window, use_local)
+        calc = EmergenceCalculator(decomposition, use_correction, use_filter,
+                filter_buffer, observation_window, use_local, threshold)
         for i in range(len(X)):
             psi = calc.update_and_compute(X[i], V[i])
             if psi:
                 psis.append(psi)
         thres = len(X[0]) + filter_buffer
-
-        calc.exit()
     else:
-        calc = EmergenceCalculator(
-            use_correction, use_filter, filter_buffer, observation_window, use_local)
+        calc = EmergenceCalculator(decomposition, use_correction, use_filter,
+                filter_buffer, observation_window, use_local, threshold)
 
         X = np.random.randn(100,10,2)
         V = np.mean(X, axis=1)
@@ -313,11 +424,12 @@ def test(model: str, use_correction: bool, use_local: bool, use_filter: bool,
             psis.append(psi)
 
         thres = 10 + filter_buffer
-        calc.exit()
 
     plot_psi(ts[thres:], psis[thres:], use_correction, use_local, use_filter, observation_window,
             show=True)
 
 
 if __name__ == "__main__":
+    startJVM()
     test()
+    stopJVM()
