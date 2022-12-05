@@ -138,12 +138,15 @@ def __mean_neighbours(
     numpy array of shape (T,) containing the average number of interaction
     neighbours in the system at each time-step
     """
-    ngh = np.array([ [ len(neighbours(i, X, r, EnumNeighbours.METRIC, bounds, L))
-                     for i in range(len(X)) ]
-                     for X in Xt ] )
-    avg_ngh = np.mean(ngh, axis = 1)
+    if r:
+        ngh = np.array([ [ len(neighbours(i, X, r, EnumNeighbours.METRIC, bounds, L))
+                        for i in range(len(X)) ]
+                        for X in Xt ] )
+        avg_ngh = np.mean(ngh, axis = 1)
 
-    return avg_ngh
+        return avg_ngh
+    else:
+        return np.zeros(shape = len(Xt))
 
 
 def __mean_dist_nearest(
