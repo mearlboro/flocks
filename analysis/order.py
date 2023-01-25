@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import numpy as np
 
 from analysis.emergence import EmergenceCalculator
@@ -270,13 +271,13 @@ def param(
         print('Computing mean & standard deviation of angle')
         m['mean_angle'], m['var_angle'] = __mean_var_angle(At)
 
-    elif 'cmass' in param_name:
-        print('Computing cmass')
-        m['cmass'] = [ centre_of_mass(X, L, bounds) for X in Xt ]
-
     elif 'dist_cmass' in param_name:
         print('Computing mean & standard deviation of distance from cmass')
         _, m['mean_dist_cmass'], m['var_dist_cmass'] = __mean_var_dist_cmass(Xt, bounds, L)
+
+    elif 'cmass' in param_name:
+        print('Computing cmass')
+        m['cmass'] = [ centre_of_mass(X, L, bounds) for X in Xt ]
 
     elif 'mean_neighbours' in param_name:
         print('Computing mean number of neighbours')
