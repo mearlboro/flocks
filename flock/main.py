@@ -6,9 +6,43 @@ from flock.vicsek     import VicsekModel
 from flock.reynolds   import ReynoldsModel
 from flock.kuravicsek import KuramotoVicsekModel
 from util.geometry    import EnumBounds, EnumNeighbours
-from util.plot        import plot_state_vectors, plot_state_oscillators, plot_state_particles_trajectories
+from util.plot        import plot_state, plot_trajectories, FlockStyle, savefig
 
 from typing import Any, Dict, List, Tuple
+
+
+def __plot(
+        sim: 'FlockModel', i: int,
+        traj: bool, cmass: bool, sumvec: bool,
+        imgpath: str
+    ) -> None:
+
+    if type(sim) is KuramotoVicsekModel:
+        print(f'{i}: saving system state to {imgpath}/')
+        # bug when saving the first image, so save it again
+        if (sim.t == 0):
+            plot_state(FlockStyle.OSCIL, i, sim.X, sim.P, sim.F, sim.l, sim.dt)
+            savefig(i, sim.title, sim.subtitle, imgpath)
+
+        plot_state(FlockStyle.OSCIL, i, sim.X, sim.P, sim.F, sim.l, sim.dt)
+    else:
+        print(f'{i}: saving system state to {imgpath}/')
+        # bug when saving the first image, so save it again
+        if (sim.t == 0):
+            plot_state(FlockStyle.DOT, i, sim.X, sim.A, sim.V, sim.l, sim.dt)
+            savefig(i, sim.title, sim.subtitle, imgpath)
+
+        if traj:
+            # remember all positions so far
+            Xt[i] = sim.X
+            plot_trajectories(i, Xt, sim.l, sim.bounds, cmass)
+            style = FlockStyle.DOT
+        else:
+            style = FlockStyle.ARROW
+
+        plot_state(style, i, sim.X, sim.A, sim.V, sim.l, sim.dt)
+
+    savefig(i, sim.title, sim.subtitle, imgpath)
 
 
 
@@ -62,7 +96,7 @@ def vicsek(
 
     Xt = np.zeros((int(t / dt), n, 2))
     # absolute velocity is always the same in Vicsek
-    V  = np.ones((n, 1)) * v
+    sim.V  = np.ones((n, 1)) * v
 
     while sim.t < t:
         # save current state to text
@@ -71,25 +105,7 @@ def vicsek(
         # save current state to image file
         if saveimg:
             i = int(sim.t / sim.dt)
-
-            if trajectories:
-                print(f'{i}: saving system state to {imgpath}/')
-                # remember all positions so far
-                Xt[i] = sim.X
-                plot_state_particles_trajectories(
-                    i, Xt, l, sim.bounds, sim.title, sim.subtitle, imgpath, cmass)
-                # bug when saving the first image, so save it again
-                if (sim.t == 0):
-                    plot_state_particles_trajectories(
-                        i, Xt, l, sim.bounds, sim.title, sim.subtitle, imgpath, cmass)
-            else:
-                print(f'{i}: saving system state to {imgpath}/')
-                plot_state_vectors(
-                    i, sim.X, sim.A, V, l, sim.title, sim.subtitle, imgpath, sumvec)
-                # bug when saving the first image, so save it again
-                if (sim.t == 0):
-                    plot_state_vectors(
-                        i, sim.X, sim.A, V, l, sim.title, sim.subtitle, imgpath, sumvec)
+            __plot(sim, i, trajectories, cmass, sumvec, imgpath)
 
         sim.update()
 
@@ -150,25 +166,7 @@ def reynolds(
         # save current state to image file
         if saveimg:
             i = int(sim.t / sim.dt)
-
-            if trajectories:
-                print(f'{i}: saving system state to {imgpath}/')
-                # remember all positions so far
-                Xt[i] = sim.X
-                plot_state_particles_trajectories(
-                    i, Xt, l, sim.bounds, sim.title, sim.subtitle, imgpath, True)
-                # bug when saving the first image, so save it again
-                if (sim.t == 0):
-                    plot_state_particles_trajectories(
-                        i, Xt, l, sim.bounds, sim.title, sim.subtitle, imgpath, True)
-            else:
-                print(f'{i}: saving system state to {imgpath}/')
-                plot_state_vectors(
-                    i, sim.X, sim.A, sim.V, l, sim.title, sim.subtitle, imgpath, sumvec)
-                # bug when saving the first image, so save it again
-                if (sim.t == 0):
-                    plot_state_vectors(
-                        i, sim.X, sim.A, sim.V, l, sim.title, sim.subtitle, imgpath, sumvec)
+            __plot(sim, i, trajectories, False, sumvec, imgpath)
 
         sim.update()
 
@@ -223,14 +221,7 @@ def kuravicsek(
         # save current state to image file
         if saveimg:
             i = int(sim.t / sim.dt)
-
-            print(f'{i}: saving system state to {imgpath}/')
-            plot_state_oscillators(
-                i, sim.X, sim.F, sim.P, sim.dt, sim.l, sim.title, sim.subtitle, imgpath)
-            # bug when saving the first image, so save it again
-            if (sim.t == 0):
-                plot_state_oscillators(
-                    i, sim.X, sim.F, sim.P, sim.dt, sim.l, sim.title, sim.subtitle, imgpath)
+            __plot(sim, i, False, False, False, imgpath)
 
         sim.update()
 
