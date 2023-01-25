@@ -1,4 +1,5 @@
 #!/usr/bin/python
+from enum import Enum
 import numpy as np
 import re
 import os
@@ -108,8 +109,7 @@ class Flock:
         if path[-1] == '/':
             path = path[:-1]
 
-        exp_name = path.split('/')[-1].split('_')[0]
-        segment  = '_'.join(path.split('/')[-1].split('_')[1:])
+        name, seg = path.split('/')[-1].split('_')[:2]
 
         X1t = load_var(f"{path}/x1.txt")
         X2t = load_var(f"{path}/x2.txt")
@@ -117,7 +117,7 @@ class Flock:
         Vt  = load_var(f"{path}/v.txt")
         (t, n) = At.shape
 
-        flock = Flock(exp_name, segment, n, 1, dt)
+        flock = Flock(name, seg, n, 1, dt)
         flock.t = t
         flock.traj['X'] = np.array([ np.stack([ X[i]
                             for X in [X1t, X2t] ], axis = 1)
@@ -126,6 +126,21 @@ class Flock:
         flock.traj['V'] = Vt
 
         return flock
+
+
+    def mkdir(self, root_dir) -> str:
+        """
+        Create output folder based on experiment name to store trajectories in
+        plain text with a name of the form
+
+            {root_dir}/
+                {name}_{bounds}_{neighbours}(_{paramname}{paramvalue})+_{seed}
+
+        """
+        pth = f'{root_dir}/{self.string}'
+        if not os.path.isdir(pth):
+            os.mkdir(pth)
+        return pth
 
 
 
@@ -264,9 +279,10 @@ class FlockModel(Flock):
             seed = -1
 
         ps_dict = { re.findall('[a-z]+', p)[0]: float(re.findall('[0-9.]+', p)[0])
-                    for p in ps[3:] }
+                    for p in ps[3:]
+                    if len(re.findall('[0-9.]+', p)) }
 
-        print(f"Loading {ps[0]} model from {path} with params {ps_dict}")
+        print(f"Loading {ps[0]} model from {path} with params {ps_dict} and seed {seed}")
         # loads all .txt files in the folder
         files = [f for f in os.listdir(path)
                    if os.path.isfile(os.path.join(path, f))
@@ -286,7 +302,7 @@ class FlockModel(Flock):
         l = np.sqrt(n / ps_dict['rho'])
 
         # call constructor with the params above
-        model = cls(ps[0], seed, n, l, EnumBounds[ps[1].upper()],
+        model = cls(seed, n, l, EnumBounds[ps[1].upper()],
              EnumNeighbours[ps[2].upper()], 1, ps_dict)
 
         # then store variable trajectories in a trajectory dictionary
@@ -299,7 +315,6 @@ class FlockModel(Flock):
         model.t = t
 
         return model
-
 
 
     @property
