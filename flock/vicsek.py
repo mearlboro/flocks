@@ -34,11 +34,28 @@ class VicsekModel(FlockModel):
         https://arxiv.org/abs/cond-mat/0611743
     """
 
+    @property
+    def default_params(self) -> Dict[str, float]:
+        """
+        Get model default parameters
+
+            e (default: 0)
+                perturbation. Noise dE added in each evolution step is uniform
+                distributed in [-E/2, E/2]
+            v (default: 0.1)
+                absolute velocity of each particle
+            r (default: 1)
+                proximity radius, normally 1 if METRIC neighbours are used, or the
+                number of neighbours to follow
+        """
+        return { 'eta': 0, 'v': 0.1, 'r': 1}
+
+
     def __init__(self, seed: int,
                  n: int, l: float,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
-                 e: float, v: float = 0.3, r: float = 1,
-                 dt: float = 1
+                 dt: float = 1,
+                 params: Dict[str, float] = {}
         ) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
@@ -61,31 +78,36 @@ class VicsekModel(FlockModel):
             enum value to whecify whether neighbourd are chosen if they are in a
             certain radius r from current particle (METRIC) or in the r closest
             neighbours (TOPOLOGICAl)
-        e
-            perturbation. Noise dE added in each evolution step is uniform
-            distributed in [-E/2, E/2]
-        v  = 0.3
-            absolute velocity of each particle
-        r  = 1
-            proximity radius, normally 1 if METRIC neighbours are used, or the
-            number of neighbours to follow
         dt = 1
             time unit
-        """
-        # initialise model-specific parameters
-        self.e = e
-        self.v = v
-        self.r = r
+        params
+            dictionary of model-specific parameters, must contain:
 
-        # initialise seed
-        np.random.seed(seed)
+            e (default: 0)
+                perturbation. Noise dE added in each evolution step is uniform
+                distributed in [-E/2, E/2]
+            v (default: 0.1)
+                absolute velocity of each particle
+            r (default: 1)
+                proximity radius, normally 1 if METRIC neighbours are used, or the
+                number of neighbours to follow
+        """
+        # merge with default params
+        params = self.default_params | params
+
+        # initalise a generic flocking model, seed, and uniform positions of particles
+        super().__init__('Vicsek', seed, n, l, bounds, neighbours, dt, params)
+
+        # initialise model-specific parameters
+        self.e = params['eta']
+        self.v = params['v']
+        self.r = params['r']
 
         # initialise particle velocity angles spread uniformly at random
         self.A = np.random.uniform(-np.pi, np.pi, size = (n, 1))
 
-        # initalise a generic flocking model and uniform positions of particles
-        params = { 'eta': e, 'v': v, 'r': r }
-        super().__init__('Vicsek', seed, n, l, bounds, neighbours, dt, params)
+        # abolute velocity is the same for all particles in Vicsek
+        self.V = np.ones((n, 1)) * self.v
 
 
     def __new_A(self, i: int) -> float:

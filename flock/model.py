@@ -1,5 +1,5 @@
 #!/usr/bin/python
-from enum import Enum
+from abc import abstractmethod
 import numpy as np
 import re
 import os
@@ -63,11 +63,11 @@ class Flock:
         params['rho'] = rho
 
         self.params = params
-        params_strs = [ f'{p}{v}' for p,v in params.items() ]
 
+        # dir name, figure title and subtitle
         self.string   = f"{name}_{segment}"
-        self.title    = f"{name} experiment, {segment}, {n} subjects"
-        self.subtitle = ', '.join([ f'${p}$ = {v}' if len(p) not in range(3, 7)
+        self.title    = f"{name} experiment {segment}: {n} subjects"
+        self.subtitle = ', '.join([ f'${p}$ = {v}' if len(p) != 3
                                     else f'$\\{p}$ = {v}'
                                     for p,v in params.items() ])
         self.t    = 0
@@ -75,9 +75,9 @@ class Flock:
 
 
     @classmethod
-    def load(cls, path: str, dt: float, params: dict = {}) -> 'Flock':
+    def load(cls, path: str, dt: float = 1, params: dict = {}) -> 'Flock':
         """
-        Factory method to create a flock-like object with trajectories produced
+        Static class method to create a flock-like object with trajectories produced
         by an experment using information at the given path. The folder contains
         trajectories for all relevant variables and is named according to the
         experiment's name and segment/trial from which data was collected.
@@ -134,13 +134,29 @@ class Flock:
         plain text with a name of the form
 
             {root_dir}/
-                {name}_{bounds}_{neighbours}(_{paramname}{paramvalue})+_{seed}
+                {name}(_{info})+(_{paramname}{paramval})+_{seed}?-id
 
+        The IDs are used in particular for images in out/plt as there may be
+        multiple visualisations for the same simulation. Otherwise, multiple
+        simulations with the same parameters are to be differentiated by seed.
         """
         pth = f'{root_dir}/{self.string}'
-        if not os.path.isdir(pth):
+
+        if 'img' in root_dir:
+            while os.path.isdir(pth):
+                # get the last sim ID
+                if '-' in pth:
+                    [prefix, str_id] = pth.split('-')
+                    sim_id = int(str_id) + 1
+                    pth = f'{prefix}-{sim_id}'
+                else:
+                    pth = f'{pth}-1'
             os.mkdir(pth)
+        else:
+            if not os.path.isdir(pth):
+                os.mkdir(pth)
         return pth
+
 
 
 
@@ -149,6 +165,9 @@ class FlockModel(Flock):
     Setup the parameters for a flocking model simulation. The model simulates
     the behaviour of moving particles in a 2D continuous space in discrete time
     steps.
+
+    This is the generic constructor, which gets called by each child class (type
+    of flocking model) when initialising a model object and the simulation.
 
     The particles are initialised in the space with model-specific positions and
     velocity vectors. At each discrete time step, the position (and velocity)
@@ -187,29 +206,19 @@ class FlockModel(Flock):
         params
             dictionary containing parameter names and values for the model
         """
-        self.n  = n
-        self.l  = l
-        self.dt = dt
+        super().__init__('', '', n, l, dt, params)
 
+        self.name = name.capitalize()
         self.bounds = bounds
         bounds_str  = bounds.name.lower()
         self.neighbours = neighbours
         neighbours_str  = neighbours.name.lower()
 
-        # initialise parameters
-        rho = round(float(n) / l ** 2, 4) # density
-        params['rho'] = rho
-
-        self.params = params
-        params_strs = [ f'{p}{v}' for p,v in params.items() ]
-
         # we save the model name and params as a string, to be used when saving
         # and we also typeset a figure title and subtitle
-        self.string   = f"{name}_{bounds_str}_{neighbours_str}_{'_'.join(params_strs)}-{seed}"
-        self.title    = f"{name} model, {bounds_str} bounds, {neighbours_str} neighbours"
-        self.subtitle = ', '.join([ f'${p}$ = {v}' if len(p) not in range(3, 7)
-                                    else f'$\\{p}$ = {v}'
-                                    for p,v in params.items() ])
+        params_strs = [ f'{p}{v}' for p,v in self.params.items() ]
+        self.string   = f"{self.name}_{bounds_str}_{neighbours_str}_{'_'.join(params_strs)}_{seed}"
+        self.title    = f"{self.name} model, {bounds_str} bounds, {neighbours_str} neighbours"
 
         # initialise seed
         if seed >= 0:
@@ -218,27 +227,25 @@ class FlockModel(Flock):
         # initialise particle positions spread uniformly at random
         self.X = np.random.uniform(0, l, size = (n, 2))
 
-        # initialise time and trajectories
-        self.t    = 0
-        self.traj = {}
-
         print(f"Initialised {self.title}, n = {self.n}, l = {self.l}, dt = {self.dt}")
         print(f" with parameters: {self.subtitle}")
         print(f" and seed {seed}")
 
 
     @classmethod
-    def load(cls, path: str) -> 'FlockModel':
+    def __load(cls, path: str) -> 'FlockModel':
         """
-        Factory method to initialise a simulated model using information at the
-        given path. The folder contains trajectories for all relevant variables
-        in the model and is named according to model params.
+        Initialise a simulated model using information at the given path. The
+        folder contains trajectories for all relevant variables in the model and
+        is named according to model params.
 
         Variables are stored as numpy 2D array of shape (T, N) or (T, N, D), where
         X[t, i] or X[t, i, :] is the value of system variable Xi at time t
 
         This function will initialise the model object as well as append each
-        state at each timestep to a 4-dimensional trajectory numpy array
+        state at each timestep to a 4-dimensional trajectory numpy array.
+
+        This function is called by the child classes of each model type.
 
         Params
         ------
@@ -270,11 +277,12 @@ class FlockModel(Flock):
         # parse directory name to extract model parameters, exclude seed and ID
         d  = os.path.basename(path).split('-')[0]
         ps = d.split('_')
+        seed = ps[-1]
 
         # some simulations may not have seed information
-        seed = os.path.basename(path).split('-')[-1]
         try:
             seed = int(seed)
+            ps = ps[:-1]
         except:
             seed = -1
 
@@ -301,7 +309,6 @@ class FlockModel(Flock):
         (t, n) = Xvars[0].shape
         l = np.sqrt(n / ps_dict['rho'])
 
-        # call constructor with the params above
         model = cls(seed, n, l, EnumBounds[ps[1].upper()],
              EnumNeighbours[ps[2].upper()], 1, ps_dict)
 
@@ -317,21 +324,18 @@ class FlockModel(Flock):
         return model
 
 
-    @property
-    def trajectories(self) -> Dict[str, np.ndarray]:
+    @classmethod
+    def load(self, path: str) -> 'FlockModel':
         """
-        Return trajectories for a system simulation loaded from file
+        Load simulation data from path where trajectories are stored in .txt
         """
-        return self.traj
-
-    @property
-    def parameters(self) -> Dict[str, np.ndarray]:
-        """
-        Return a hash of all model parameters
-        """
-        return self.params
+        if type(self) == FlockModel:
+            raise NotImplementedError("Cannot initialise FlockModel directly. Use specific model constructor or the FlockFactory object")
+        else:
+            return self.__load(path)
 
 
+    @abstractmethod
     def update(self) -> None:
         """
         Update every particle in the system to its new position
@@ -345,28 +349,4 @@ class FlockModel(Flock):
         """
         print(f'{int(self.t / self.dt)}: saving system state to {path}')
 
-
-    def mkdir(self, root_dir) -> str:
-        """
-        Create output folder based on simulation name to store simulation
-        results with a name of the form
-
-            {root_dir}/
-                {name}_{bounds}_{neighbours}(_{paramname}{paramvalue})+(-{simID})?_{seed}
-
-        """
-        pth = f'{root_dir}/{self.string}'
-
-        while os.path.isdir(pth):
-            # get the last sim ID
-            if '-' in pth:
-                [prefix, str_id] = pth.split('-')
-                sim_id = int(str_id) + 1
-                pth = f'{prefix}-{sim_id}'
-            else:
-                pth = f'{pth}-1'
-
-        os.mkdir(pth)
-
-        return pth
 

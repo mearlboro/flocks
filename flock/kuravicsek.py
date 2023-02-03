@@ -50,12 +50,32 @@ class KuramotoVicsekModel(FlockModel):
     https://doi.org/10.1007/978-3-642-69689-3
     """
 
+    @property
+    def default_params(self) -> Dict[str, float]:
+        """
+        Get model default parameters:
+
+            eta (default: 0)
+                perturbation. Noise dE added in each evolution step is uniform
+                distributed in [-eta/2, eta/2]
+            v (default: 1)
+                absolute velocity of each particle
+            r (default: 1)
+                proximity radius, normally 1 if METRIC neighbours are used, or the
+                number of neighbours to follow
+            k (default: 0.5)
+                for the Kuramoto model, the coupling parameter between neighbours
+            f (default: 1)
+                frequency of oscillators, measured in Hertz
+        """
+        return { 'eta': 0, 'v': 0.3, 'r': 1, 'k': 0.5, 'f': 1 }
+
+
     def __init__(self, seed: int,
                  n: int, l: int,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
-                 e: float, v: float = 0.3, r: float = 1,
-                 k: float = 1, f: float = 1,
-                 dt: float = 0.1
+                 dt: float = 0.1,
+                 params: Dict[str, float] = {}
         ) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
@@ -79,41 +99,46 @@ class KuramotoVicsekModel(FlockModel):
             enum value to whecify whether neighbourd are chosen if they are in a
             certain radius r from current particle (METRIC) or in the r closest
             neighbours (TOPOLOGICAl)
-        e
-            perturbation. Noise dE added in each evolution step is uniform
-            distributed in [-E/2, E/2]
-        v  = 1
-            absolute velocity of each particle
-        r  = 1
-            proximity radius, normally used as distance unit, or number of
-            neighbours to follow
-        k
-            for the Kuramoto model, the coupling parameter between neighbours
-        f  = 1
-            frequency of oscillators, measured in Hertz
-        dt
+        dt = 0.1
             time unit
-        """
-        # initialise model-specific parameters
-        self.e  = e
-        self.v  = v
-        self.r  = r
-        self.f  = f
-        self.k  = k
+        params
+            dictionary of model-specific parameters, must contain:
 
-        # initialise seed
-        np.random.seed(seed)
+            eta (default: 0)
+                perturbation. Noise dE added in each evolution step is uniform
+                distributed in [-eta/2, eta/2]
+            v (default: 1)
+                absolute velocity of each particle
+            r (default: 1)
+                proximity radius, normally 1 if METRIC neighbours are used, or the
+                number of neighbours to follow
+            k (default: 0.5)
+                for the Kuramoto model, the coupling parameter between neighbours
+            f (default: 1)
+                frequency of oscillators, measured in Hertz
+        """
+        # merge with default params
+        params = self.default_params | params
+
+        # initalise a generic flocking model, seed, and uniform positions of particles
+        super().__init__('KuramotoVicsek', seed, n, l, bounds, neighbours, dt, params)
+
+        # initialise model-specific parameters
+        self.e  = params['eta']
+        self.v  = params['v']
+        self.r  = params['r']
+        self.f  = params['f']
+        self.k  = params['k']
 
         # initialise particle velocity angles spread uniformly at random
         self.A = np.random.uniform(-np.pi, np.pi, size = (n, 1))
 
         # initialise oscillator frequency and phase
-        self.F = np.zeros(shape = (n)) + f
+        self.F = np.zeros(shape = (n)) + self.f
         self.P = np.random.uniform(0, np.pi, size = (n))
 
-        # initalise a generic flocking model and uniform positions of particles
-        params = { 'eta': e, 'v': v, 'r': r, 'k': k, 'f': f }
-        super().__init__('KuramotoVicsek', seed, n, l, bounds, neighbours, dt, params)
+        # absolute velocity is the same for all particles in Vicsek
+        self.V = np.ones((n, 1)) * self.v
 
 
     def __new_A(self, i: int) -> float:

@@ -15,15 +15,13 @@ class FlockStyle(Enum):
     OSCIL = 3
 
     @classmethod
-    def fromStr(self, name: str) -> 'FlockStyle':
-        if name.lower() == 'arrow':
-            return self.ARROW
-        if name.lower() == 'dot':
-            return self.DOT
-        if name.lower() == 'line':
-            return self.LINE
-        if name.lower() == 'oscil':
-            return self.OSCIL
+    def names(self) -> List[str]:
+        return list(self.__members__.keys())
+
+    @classmethod
+    def members(self) -> List['FlockStyle']:
+        return list(self.__members__.values())
+
 
 
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -98,9 +96,10 @@ def plot_vector(
     else:
         quivsize = 0
 
+    # scale_units='xy' makes arrows proportional, scale is inverse (i.e. increase to make smaller)
     plt.quiver([x], [y], [vx], [vy],
-               units = 'width', angles = 'xy', scale_units = 'xy', scale  =  0.5,
-               headaxislength = quivsize, headlength = quivsize, width = .01, color = col)
+               units = 'width', angles = 'xy', scale_units = 'xy', scale = 0.4,
+               headaxislength = quivsize, headlength = quivsize * 2, width = .005, color = col)
     return
 
 
@@ -148,7 +147,7 @@ def plot_oscillator(
 
 def plot_trajectory(
         t: int, Xit: np.ndarray, l: float,
-        col: str = 'grey', ts: int = 100
+        ts: int = 100, col: str = 'grey'
     ) -> None:
     """
     Plot a particle's trajectory for the last ts timepoints
@@ -172,20 +171,48 @@ def plot_trajectory(
         Xit = Xit[0:t+1]
 
     if t > 0:
-        # to avoid cross lines for periodic boundaries use a masked array
-        abs_Xt   = np.abs(np.diff(Xt[:, 0]))
-        mask     = np.hstack([ abs_Xt >= l-1, [False]])
-        mask_Xt0 = np.ma.MaskedArray(Xt[:, 0], mask)
+    #    # to avoid cross lines for periodic boundaries use a masked array
+    #    abs_Xt   = np.abs(np.diff(Xt[:, 0]))
+    #    mask     = np.hstack([ abs_Xt >= l-1, [False]])
+    #    mask_Xt0 = np.ma.MaskedArray(Xt[:, 0], mask)
 
-        abs_Xt   = np.abs(np.diff(Xt[:, 1]))
-        mask     = np.hstack([ abs_Xt >= l-1, [False]])
-        mask_Xt1 = np.ma.MaskedArray(Xt[:, 1], mask)
+    #    abs_Xt   = np.abs(np.diff(Xt[:, 1]))
+    #    mask     = np.hstack([ abs_Xt >= l-1, [False]])
+    #    mask_Xt1 = np.ma.MaskedArray(Xt[:, 1], mask)
 
         if col == 'grey':
             alpha = 0.3
         else:
             alpha = 1
-        plt.plot(mask_Xt0, mask_Xt1, col, alpha=alpha)
+        plt.plot(Xit[:,0], Xit[:,1], col, alpha=alpha)
+    #    plt.plot(mask_Xt0, mask_Xt1, col, alpha=alpha)
+    return
+
+
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Plot some mean variable (centre of mass or vector sum / mean
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+def plot_cmass(
+        t: int, Xt: np.ndarray, l: float, ts: int,
+        topology: EnumBounds = EnumBounds.REFLECTIVE,
+        col: str = 'yellow'
+    ) -> None:
+
+    M = np.array([ centre_of_mass(X, l, topology) for X in Xt ])
+    plot_trajectory(t, M, l, ts, col)
+
+    return
+
+
+def plot_sumvec(
+        t: int, X: np.ndarray, A: np.ndarray, V: np.ndarray, l: int, dt: float,
+        col: str = 'yellow', simple: bool = False
+    ) -> None:
+
+    (n, _) = X.shape
+    S = sum_vec_ang(A, V) / n
+    plt.plot([l/2, S[0] + l/2], [l/2, S[1] + l/2], col, linewidth=3)
+
     return
 
 
@@ -194,9 +221,8 @@ def plot_trajectory(
 Plot state of all particle at time t with given style
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 def plot_trajectories(
-        t: int, Xt: np.ndarray, ts: int, l: float,
-        topology: EnumBounds = EnumBounds.REFLECTIVE,
-        cmass: bool = False,
+        t: int, Xt: np.ndarray, l: float, ts: int,
+        topology: EnumBounds = EnumBounds.REFLECTIVE
     ) -> None:
     """
     Plot the trajectories ts discrete timesteps before time t. To be used before
@@ -225,9 +251,6 @@ def plot_trajectories(
     for i in range(n):
         plot_trajectory(t, Xt[:, i], l, ts = ts)
 
-    if cmass:
-        M = np.array([ centre_of_mass(X, l, topology) for X in Xt ])
-        plot_trajectory(t, M, l, 'yellow', ts)
     return
 
 
@@ -294,24 +317,6 @@ def plot_state(
     return
 
 
-
-'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-plot observable parameters on top of the system state
-'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-#def plot_order(
-#        param: EnumOrder
-#    )
-#
-#    if cmass:
-#        M = np.array([ centre_of_mass(X, l, topology) for X in Xt ])
-#        print(M.shape)
-#        plot_trajectory(t, M, l, 'yellow')
-#
-#    if sumvec:
-#        S = sum_vec_ang(A, V) / n
-#        plt.plot([l/2, S[0] + l/2], [l/2, S[1] + l/2], 'yellow', linewidth=3)
-
-
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 Save or show the state plot
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -343,7 +348,7 @@ def savefig(
         if True, clear the flot
     """
     plt.xlabel(t)
-    if simple:
+    if not simple:
         plt.title(subtitle)
         plt.suptitle(title)
 
