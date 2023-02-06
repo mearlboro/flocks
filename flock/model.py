@@ -67,7 +67,7 @@ class Flock:
         # dir name, figure title and subtitle
         self.string   = f"{name}_{segment}"
         self.title    = f"{name} experiment {segment}: {n} subjects"
-        self.subtitle = ', '.join([ f'${p}$ = {v}' if len(p) != 3
+        self.subtitle = ', '.join([ f'{p} = {v}' if len(p) != 3
                                     else f'$\\{p}$ = {v}'
                                     for p,v in params.items() ])
         self.t    = 0
@@ -218,7 +218,7 @@ class FlockModel(Flock):
         # and we also typeset a figure title and subtitle
         params_strs = [ f'{p}{v}' for p,v in self.params.items() ]
         self.string   = f"{self.name}_{bounds_str}_{neighbours_str}_{'_'.join(params_strs)}_{seed}"
-        self.title    = f"{self.name} model, {bounds_str} bounds, {neighbours_str} neighbours"
+        self.title    = f"{self.name} model, {bounds_str}, {neighbours_str}"
 
         # initialise seed
         if seed >= 0:
@@ -228,8 +228,8 @@ class FlockModel(Flock):
         self.X = np.random.uniform(0, l, size = (n, 2))
 
         print(f"Initialised {self.title}, n = {self.n}, l = {self.l}, dt = {self.dt}")
-        print(f" with parameters: {self.subtitle}")
-        print(f" and seed {seed}")
+        print(f"  with parameters: {self.subtitle}")
+        print(f"  and seed {seed}")
 
 
     @classmethod
@@ -290,7 +290,7 @@ class FlockModel(Flock):
                     for p in ps[3:]
                     if len(re.findall('[0-9.]+', p)) }
 
-        print(f"Loading {ps[0]} model from {path} with params {ps_dict} and seed {seed}")
+        print(f"Found {ps[0]} model with params {ps_dict} and seed {seed}")
         # loads all .txt files in the folder
         files = [f for f in os.listdir(path)
                    if os.path.isfile(os.path.join(path, f))
@@ -308,6 +308,8 @@ class FlockModel(Flock):
         # get number of agents, timesteps, and system size from the array shapes
         (t, n) = Xvars[0].shape
         l = np.sqrt(n / ps_dict['rho'])
+
+        print(f"Found time series of length t={t} for n={n} variables")
 
         model = cls(seed, n, l, EnumBounds[ps[1].upper()],
              EnumNeighbours[ps[2].upper()], 1, ps_dict)

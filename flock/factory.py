@@ -41,7 +41,7 @@ class FlockFactory:
         mname = mstr.split('_')[0]
         mtype = EnumModels.from_str(mname)
 
-        if mname != EnumModels.UNKNOWN:
+        if mtype != EnumModels.UNKNOWN:
             print(f"Loading {mname} model (of type {mtype}) from {path} using FlockFactory")
 
         if mtype == EnumModels.VICSEK:
