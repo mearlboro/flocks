@@ -6,6 +6,12 @@ Rosas FE*, Mediano PAM*, Jensen HJ, Seth AK, Barrett AB, Carhart-Harris RL, et
 al. (2020) Reconciling emergences: An information-theoretic approach to
 identify causal emergence in multivariate data. PLoS Comput Biol 16(12):
 e1008289.
+
+Uses the Java JIDT package for computing information-theoretic quantites, in
+particular the MutualInfoCalculatorMultivariate
+https://lizier.me/joseph/software/jidt/javadocs/v1.6/infodynamics/measures/continuous/MutualInfoCalculatorMultiVariate.html
+See also https://github.com/jlizier/jidt/wiki/PythonExamples for using JIDT
+in Python.
 """
 
 import click
@@ -15,6 +21,7 @@ import numpy as np
 import os
 import sys
 
+from decorator import decorator
 from typing import Callable, Dict, Iterable, List, Tuple, Union
 
 from analysis import order
@@ -44,7 +51,6 @@ class JVM:
                 print('Error starting JVM')
                 sys.exit(0)
 
-
     @classmethod
     def stop(self) -> None:
         """
@@ -54,7 +60,6 @@ class JVM:
             print('Shutting down JVM...')
             jp.shutdownJVM()
             print('Done.')
-
 
     @classmethod
     def javify(self, X: np.ndarray) -> jp.JArray:
@@ -92,26 +97,26 @@ class JVM:
         return jX
 
 
-
 class MutualInfo:
-
+    """
+    Class for calling various JIDT mutual information calculators for discrete
+    and continuous variables. Returns class functions that can be passed to
+    EmergenceCalc to compute mutual information.
+    """
     @classmethod
-    def discrete(self,
-        X: np.ndarray, Y: np.ndarray,
-            pointwise: bool = False, dt: int = 0
-        ) -> np.ndarray:
-        # TODO: implement
-        pass
+    def get(self, name: str) -> Callable[None, str]:
+        if name.lower() == 'gaussian':
+            return self.ContinuousGaussian
+        elif name.lower() == 'kraskov1':
+            return self.ContinuousKraskov1
+        elif name.lower() == 'kraskov2':
+            return self.ContinuousKraskov2
+        elif name.lower() == 'kernel':
+            return self.ContinuousKernel
 
 
-    @classmethod
-    def ContinuousGaussian(self,
-            X: np.ndarray, Y: np.ndarray,
-            pointwise: bool = False, dt: int = 0
-        ) -> np.ndarray:
+    def _MICalc(calcName: Callable[None, str]) -> Union[np.ndarray, float]:
         """
-        Compute continuous mutual information (using differential entropy instead
-        of Shannon entropy) between time series X and Y.
         Store the time series as observations in the mutual information calculators,
         used to estimate joint distributions between X and Y by using the pairs
         X[t], Y[t+dt], then compute the mutual information.
@@ -126,32 +131,105 @@ class MutualInfo:
             T is time or observation index, Dy is variable number.
         pointwise
             if set use pointwise MI rather than Shannon MI, i.e. applied on
-            specific states rather than integrateing whole distributions
+            specific states rather than integrateing whole distributions.
+            this returns a PMI value for each pair X[t], Y[t+dt] rather than
+            a value for the whole time series
         dt
             source-destination lag
 
         Returns
         ------
-        I(X[t], Y[t+dt]) for t in range(0, T - dt), in nats
+        I(X[t], Y[t+dt]) for t in range(0, T - dt)
+            if pointiwse = False, the MI is a float in nats not bits!
+            if pointwise = True,  the MI is a list of floats, in nats, for every
+                                  pair of values in the two time series
         """
-        if len(X) != len(Y):
-            raise ValueError('Cannot compute MI for time series of different lengths')
+        def __compute(
+                X: np.ndarray, Y: np.ndarray,
+                pointwise: bool = False, dt: int = 0,
+            ) -> np.ndarray:
+            """
+            Whenever Python decorator @_MICalc is used with a function, this function
+            returns the mutual info as computed with the estimator specified by the
+            function.
+            To add more calculators from JIDT, the newly added function needs to be
+            decorated with @_MICalc.
+            """
+            if len(X) != len(Y):
+                raise ValueError('Cannot compute MI for time series of different lengths')
 
-        jX, jY = (JVM.javify(X[dt:]), JVM.javify(Y[:-dt]))
 
-        calc = jp.JClass(
-            'infodynamics.measures.continuous.gaussian.MutualInfoCalculatorMultiVariateGaussian')()
-        #TODO: doesnt work
-        #calc.setProperty('PROP_TIME_DIFF', str(dt))
-        calc.initialise(X.shape[1], Y.shape[1])
-        calc.setObservations(jX, jY)
+            jX, jY = (JVM.javify(X[dt:]), JVM.javify(Y[:-dt]))
 
-        if pointwise:
-            #TODO:
-            #return calc.computeLocalUsingPreviousObservations()
-            pass
-        else:
-            return calc.computeAverageLocalOfObservations()
+            calc = jp.JClass(calcName())()
+            calc.initialise(X.shape[1], Y.shape[1])
+            #TODO: doesnt work
+            #calc.setProperty('PROP_TIME_DIFF', str(dt))
+            calc.setObservations(jX, jY)
+            calc.finaliseAddObservations()
+
+            if pointwise:
+                # type JArray, e.g. <class 'jpype._jarray.double[]'>, can be indexed with arr[i]
+                return calc.computeLocalUsingPreviousObservations(jX, jY)
+            else:
+                # float
+                return calc.computeAverageLocalOfObservations()
+
+        # Set name and docstrings of decorated function
+        __compute.__name__ = calcName.__name__
+        #TODO: scope issue when adding docstrings from _MICalc
+        __compute.__doc__  = calcName.__doc__ #+ MutualInfo._MICalc.__doc__
+        return __compute
+
+
+    @_MICalc
+    def ContinuousGaussian() -> str:
+        """
+        Compute continuous mutual information (using differential entropy instead
+        of Shannon entropy) between time series X and Y.
+        The estimator assumes that the underlying distributions for the time
+        series are Gaussian and that the time series are stationary.
+        """
+        return 'infodynamics.measures.continuous.gaussian.MutualInfoCalculatorMultiVariateGaussian'
+
+    @_MICalc
+    def ContinuousKraskov1() -> str:
+        """
+        Compute continuous mutual information using the Kraskov estimator between
+        time series X and Y, specifically the 1nd algorithm in:
+
+        Kraskov, A., Stoegbauer, H., Grassberger, P., "Estimating mutual information",
+        Physical Review E 69, (2004) 066138.
+
+        The mutual info calculator makes no Gaussian assumptions, but the time series
+        must be stationary.
+        """
+        return 'infodynamics.measures.continuous.kraskov.MutualInfoCalculatorMultiVariateKraskov1'
+
+    @_MICalc
+    def ContinuousKraskov2() -> str:
+        """
+        Compute continuous mutual information using the Kraskov estimator between
+        time series X and Y, specifically the 2nd algorithm in:
+
+        Kraskov, A., Stoegbauer, H., Grassberger, P., "Estimating mutual information",
+        Physical Review E 69, (2004) 066138.
+
+        The mutual info calculator makes no Gaussian assumptions, but the time series
+        must be stationary.
+        """
+        return 'infodynamics.measures.continuous.kraskov.MutualInfoCalculatorMultiVariateKraskov2'
+
+    @_MICalc
+    def ContinuousKernel() -> str:
+        """
+        Compute continuous mutual information using box-kernel estimation between
+        time series X and Y.
+        The mutual info calculator makes no Gaussian assumptions, but the time series
+        must be stationary.
+        """
+        return 'infodynamics.measures.continuous.kernel.MutualInfoCalculatorMultiVariateKernel'
+
 
 
 class EmergenceCalc:
@@ -184,6 +262,7 @@ class EmergenceCalc:
             number of time steps in the future to predict
         """
         print(f"Initialise Emergence Calculator using {'pointwise' if pointwise else 'Shannon'} mutual information with t'=t+{dt}")
+        print(f"  and MI estimator {mutualInfo.__name__}")
 
         if len(X.shape) < 3:
             X = np.atleast_3d(X)
@@ -217,7 +296,6 @@ class EmergenceCalc:
                 self.xmiCalcs[(i, j)] = mutualInfo(self.X[i], self.X[j], pointwise, dt)
 
         print('Done.')
-
 
 
     def psi(self,
@@ -274,7 +352,6 @@ class EmergenceCalc:
         else:
             return syn - red + corr
 
-
     def delta(self
         ) -> float:
         """
@@ -303,7 +380,6 @@ class EmergenceCalc:
                     for j, vx in enumerate(self.vxmiCalcs.values()) )
         return delta
 
-
     def gamma(self
         ) -> float:
         """
@@ -331,8 +407,11 @@ class EmergenceCalc:
         return gamma
 
 
+
 @click.command()
 @click.option('--model',  help = 'Directory where system trajectories are stored')
+@click.option('--est', type = click.Choice([ 'Gaussian', 'Kraskov1', 'Kraskov2', 'Kernel']),
+              help = 'Mutual Info estimator to use')
 @click.option('--decomposition', is_flag = True, default = False,
               help = 'If true, decompose Psi into the synergy, redundancy, and correction.')
 @click.option('--correction', type = int, default = 1,
@@ -341,7 +420,7 @@ class EmergenceCalc:
               help = 'If true, use pointwise mutual information for emergence calculation.')
 @click.option('--threshold',
               help = 'Number of timesteps to wait before calculation, at least as many as the dimenstions of the system')
-def test(model: str,
+def test(model: str, est: str,
          decomposition: bool, correction: bool, pointwise: bool, threshold: int
     ) -> None:
     """
@@ -356,9 +435,11 @@ def test(model: str,
         M = order.param(params.CMASS, X, [], m.l, m.r, m.bounds)[params.CMASS]
     else:
         # generate data for 100 timesteps for 2 binary variables
+        np.random.seed(0)
         X = np.random.choice(a= [ False, True ], size = (100, 2), p = [0.5, 0.5])
         M = np.logical_xor(X[:,0], X[:,1])
 
+    est = MutualInfo.get(est)
     calc = EmergenceCalc(X, M, MutualInfo.ContinuousGaussian,
                             pointwise = pointwise, dt = 1)
     p = calc.psi(decomposition = decomposition, correction = correction)
