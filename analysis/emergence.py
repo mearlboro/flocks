@@ -8,8 +8,7 @@ identify causal emergence in multivariate data. PLoS Comput Biol 16(12):
 e1008289.
 
 Uses the Java JIDT package for computing information-theoretic quantites, in
-particular the MutualInfoCalculatorMultivariate
-https://lizier.me/joseph/software/jidt/javadocs/v1.6/infodynamics/measures/continuous/MutualInfoCalculatorMultiVariate.html
+particular the MutualInfoCalculatorMultivariate.
 See also https://github.com/jlizier/jidt/wiki/PythonExamples for using JIDT
 in Python.
 """
@@ -21,8 +20,7 @@ import numpy as np
 import os
 import sys
 
-from decorator import decorator
-from typing import Callable, Dict, Iterable, List, Tuple, Union
+from typing import Callable, Dict, Iterable, List, NamedTuple, Tuple, Union
 
 from analysis import order
 from analysis.order import EnumParams as params
@@ -33,7 +31,9 @@ from util.geometry import EnumBounds
 
 
 class JVM:
-
+    """
+    Singleton class for managing the JVM for calls to infodynamics.jar
+    """
     INFODYNAMICS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'infodynamics.jar')
 
     @classmethod
@@ -97,6 +97,22 @@ class JVM:
         return jX
 
 
+
+class Emergence(NamedTuple):
+    """
+    Tuple container for all results of emergence calculation, using named fields
+    to make addressing each quantity and the decomposition of Psi easier.
+    """
+    psi: float
+    psik1: float
+    syn: float
+    red: float
+    corr: float
+    gamma: float
+    delta: float
+
+
+
 class MutualInfo:
     """
     Class for calling various JIDT mutual information calculators for discrete
@@ -113,6 +129,8 @@ class MutualInfo:
             return self.ContinuousKraskov2
         elif name.lower() == 'kernel':
             return self.ContinuousKernel
+        else:
+            raise ValueError(f"Estimator {name} not supported")
 
 
     def _MICalc(calcName: Callable[None, str]) -> Union[np.ndarray, float]:
@@ -152,12 +170,9 @@ class MutualInfo:
             Whenever Python decorator @_MICalc is used with a function, this function
             returns the mutual info as computed with the estimator specified by the
             function.
-            To add more calculators from JIDT, the newly added function needs to be
-            decorated with @_MICalc.
             """
             if len(X) != len(Y):
                 raise ValueError('Cannot compute MI for time series of different lengths')
-
 
             jX, jY = (JVM.javify(X[dt:]), JVM.javify(Y[:-dt]))
 
@@ -233,11 +248,14 @@ class MutualInfo:
 
 
 class EmergenceCalc:
-
+    """
+    Computes quanities related to causal emergence using a given MutualInfo calculator
+    function on time series X and V
+    """
     def __init__(self,
             X: np.ndarray, V: np.ndarray,
             mutualInfo: Callable[[np.ndarray, np.ndarray, bool, int], float],
-            pointwise: bool,
+            pointwise: bool = False,
             dt: int =  1
         ) -> None:
         """
@@ -316,12 +334,11 @@ class EmergenceCalc:
 
         Params
         ------
-        X
-            system micro variables of shape (N, T) for N components in the
-            system
-        V
-            candidate emergence feature: D-dimensional system macro variable of
-            shape (D, T)
+        decomposition
+            if True, return Synergy, Redundancy and Correction instead of Psi
+        correction
+            compute lattice correction of order given by this value. Currently
+            supports only 0 and 1.
 
         Returns
         ------
@@ -352,8 +369,8 @@ class EmergenceCalc:
         else:
             return syn - red + corr
 
-    def delta(self
-        ) -> float:
+
+    def delta(self) -> float:
         """
         Use MI quantities computed in the intialiser to derive practical criterion
         for emergence.
@@ -361,27 +378,13 @@ class EmergenceCalc:
             Delta = max_j (I(V(t);X_j(t')) - sum_i I(X_i(t); X_j(t'))
 
         where  t' - t = self.dt
-
-        Params
-        ------
-        X
-            system micro variables of shape (N, T) for N components in the
-            system
-        V
-            candidate emergence feature: D-dimensional system macro variable of
-            shape (D, T)
-
-        Returns
-        ------
-        delta
         """
-        j = 1
         delta = max(vx - sum(self.xmiCalcs[(i, j)] for i in range(self.n) if i != j)
                     for j, vx in enumerate(self.vxmiCalcs.values()) )
         return delta
 
-    def gamma(self
-        ) -> float:
+
+    def gamma(self) -> float:
         """
         Use MI quantities computed in the intialiser to derive practical criterion
         for emergence.
@@ -389,29 +392,145 @@ class EmergenceCalc:
             Gamma = max_j I(V(t); X_j(t'))
 
         where  t' - t = self.dt
-
-        Params
-        ------
-        X
-            system micro variables of shape (N, T) for N components in the
-            system
-        V
-            candidate emergence feature: D-dimensional system macro variable of
-            shape (D, T)
-
-        Returns
-        ------
-        gamma
         """
         gamma = max(self.vxmiCalcs.values())
         return gamma
 
 
 
+
+def system(
+        X: np.ndarray, V: np.ndarray, dts: List[int],
+        mutualInfo: Callable, pointwise: bool = False, correction: int = 1
+    ) -> List['Emergence']:
+    """
+    Initialise emergence calculator between time series X and V and return
+    corrected, decomposed Psi, Gamma and Delta for time delays in dt.
+
+    Assume stationarity, i.e. the underlying distribution for the value of
+    variable i is the same regardless of time t. If the system is not stationary,
+    use `ensemble` with `stationary = False` on multiple realisations of the
+    system instead.
+
+    Params
+    ------
+    Xs
+        array of micro variables of shape (r, t, n, d1) for r realisations of a
+        system of n d1-dimensional variables over t timesteps
+    V
+        array of emergence features of shape (r, t, d2) for each
+    dts
+        an array of all the numbers of time steps in the future to predict
+    mutualInfo
+        mutual information function to use from MutualInfo class
+    pointwise
+        whether to use pointwise (p log p) or Shannon (sum p log p) MI
+    correction
+        order of the lattice correction when computing Psi
+
+    Returns
+    ------
+    decomposed Psi, Gamma, Delta as scalars in a (named) tuple foreach dt
+    """
+    emgs = []
+    for dt in dts:
+        calc = EmergenceCalc(X, V, mutualInfo, pointwise = pointwise, dt = dt)
+        psi = calc.psi(decomposition = True, correction = correction)
+        psi = ( psi[0] - psi[1], psi[0] - psi[1] + psi[2], *psi )
+        emg = Emergence(*psi, calc.delta(), calc.gamma())
+        emgs.append(emg)
+
+    return emgs
+
+
+def ensemble(
+        stationary: bool,
+        Xs: np.ndarray, Vs: np.ndarray, dts: int,
+        mutualInfo: Callable, correction: int = 1,
+        path: str = ''
+    ) -> List[Tuple['Emergence', 'Emergence']]:
+    """
+    Compute emergence between time series of components X and a macroscopic
+    feature V for a whole ensemble of realisations of the same system, for
+    the time delays given in dts.
+
+    When assuming stationarity, all Xi, V have the same probability distribution
+    regardless of t, so the MI is applied between Xi and V at different times t
+    and t', given by the each dt = t' - t.
+
+    When the system is non-stationary, we cannot directly apply MI between Xi and
+    V at arbitrary times (as the distribution of each Xi and V may be dependent
+    on t). Instead, we take all Xi from the ensemble at the same time t, and V
+    at the time t'.
+
+    Params
+    ------
+    Xs
+        numpy array of shape (r, t, n, d1) for ensembles of r realisations of
+        a system of n d1-dimensional variables over t timesteps
+    Vs
+        numpy array of shape (r, t, d2) for the instantaneous d2-dimensional order
+        parameter computed for each ensemble at each timestep
+    dts
+        array with a range of scalar time differences
+    mutualInfo
+        mutual information function to use from MutualInfo class
+    correction
+        order of the lattice correction when computing Psi
+    path
+        if set, dump the results of for the ensemble to path
+
+    Returns
+    ------
+    a list of mean and standard deviation values for each emergence quantity as
+    pairs of Emergence named tuples, with statistics for each dt
+    """
+    estats = []
+    stats = lambda xs: (np.mean(xs, axis = 0), np.std(xs, axis = 0))
+
+    R, T, N, D1 = Xs.shape[:4]
+    if len(Vs.shape) > 2:
+       D2 = Vs.shape[2]
+    else:
+       D2 = 1
+
+    for dt in dts:
+        print(f"Computing emergence quantities for a time delay of {dt}")
+        emgs = []
+
+        if stationary:
+            # if we can assume stationarity, then we simply compute MI between
+            # the time series with time delay dt
+            for X, V in zip(Xs, Vs):
+                emgs.append(system(X, V, [ dt ], mutualInfo)[0])
+        else:
+            # for non-stationary systems, we need to always compute MI between
+            # all Xi across all R realisations at the same time t and t+dt, so
+            # concatenate them and pass to the calculator with time delay T
+            for t in range(1, T - dt - 1):
+                print(f"Computing emergence from t={t} to t'={t*dt}")
+                X  = np.concatenate((
+                        Xs[:, t, :].reshape(R, N, D1),
+                        Xs[:, t + dt, :].reshape(R, N, D1)))
+                V  = np.concatenate((
+                        Vs[:, t].reshape(R, D2),
+                        Vs[:, t + dt].reshape(R, D2)))
+                emgs.append(system(X, V, [ R ], mutualInfo)[0])
+
+        mean, std = stats(np.array(emgs))
+        estats.append((Emergence(*mean), Emergence(*std)))
+
+    if path:
+        np.save(f"{path}/ensemble_stats", estats)
+
+    return estats
+
+
+
 @click.command()
 @click.option('--model',  help = 'Directory where system trajectories are stored')
 @click.option('--est', type = click.Choice([ 'Gaussian', 'Kraskov1', 'Kraskov2', 'Kernel']),
-              help = 'Mutual Info estimator to use')
+              help = 'Mutual Info estimator to use', required = True)
 @click.option('--decomposition', is_flag = True, default = False,
               help = 'If true, decompose Psi into the synergy, redundancy, and correction.')
 @click.option('--correction', type = int, default = 1,
@@ -434,19 +553,17 @@ def test(model: str, est: str,
         n = m.n
         M = order.param(params.CMASS, X, [], m.l, m.r, m.bounds)[params.CMASS]
     else:
-        # generate data for 100 timesteps for 2 binary variables
+        # generate data for 1000 timesteps for 2 binary variables
         np.random.seed(0)
-        X = np.random.choice(a= [ False, True ], size = (100, 2), p = [0.5, 0.5])
-        M = np.logical_xor(X[:,0], X[:,1])
+        X = np.random.choice(a = [ False, True ], size = (1000, 2), p = [0.4, 0.6])
+        # for the data to be emergent for dt=1, compute XOR of X with delay 1
+        M = np.concatenate(([0], np.logical_xor(X[1:,0], X[1:,1])))
 
     est = MutualInfo.get(est)
-    calc = EmergenceCalc(X, M, MutualInfo.ContinuousGaussian,
-                            pointwise = pointwise, dt = 1)
-    p = calc.psi(decomposition = decomposition, correction = correction)
-    d = calc.delta()
-    g = calc.gamma()
-
-    print(p, d, g)
+    dts = [ 1, 2, 3  ]
+    ems = system(X, M, dts, est, pointwise, correction)
+    for dt, e in zip(dts, ems):
+        print(f"{dt}: {e}")
 
 
 if __name__ == "__main__":
