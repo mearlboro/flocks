@@ -113,6 +113,69 @@ class Emergence(NamedTuple):
 
 
 
+def _MICalc(calcName: Callable[None, str]) -> Union[np.ndarray, float]:
+    """
+    Store the time series as observations in the mutual information calculators,
+    used to estimate joint distributions between X and Y by using the pairs
+    X[t], Y[t+dt], then compute the mutual information.
+
+    Params
+    ------
+    X
+        1st time series of shape (T, Dx) i.e. source.
+        T is time or observation index, Dx is variable number.
+    Y
+        2nd time series of shape (T, Dy) i.e. target
+        T is time or observation index, Dy is variable number.
+    pointwise
+        if set use pointwise MI rather than Shannon MI, i.e. applied on
+        specific states rather than integrateing whole distributions.
+        this returns a PMI value for each pair X[t], Y[t+dt] rather than
+        a value for the whole time series
+    dt
+        source-destination lag
+
+    Returns
+    ------
+    I(X[t], Y[t+dt]) for t in range(0, T - dt)
+        if pointiwse = False, the MI is a float in nats not bits!
+        if pointwise = True,  the MI is a list of floats, in nats, for every
+                                pair of values in the two time series
+    """
+    def __compute(
+            X: np.ndarray, Y: np.ndarray,
+            pointwise: bool = False, dt: int = 0,
+        ) -> np.ndarray:
+        """
+        Whenever Python decorator @_MICalc is used with a function, this function
+        returns the mutual info as computed with the estimator specified by the
+        function.
+        """
+        if len(X) != len(Y):
+            raise ValueError('Cannot compute MI for time series of different lengths')
+
+        jX, jY = (JVM.javify(X[dt:]), JVM.javify(Y[:-dt]))
+
+        calc = jp.JClass(calcName())()
+        calc.initialise(X.shape[1], Y.shape[1])
+        #TODO: doesnt work
+        #calc.setProperty('PROP_TIME_DIFF', str(dt))
+        calc.setObservations(jX, jY)
+        calc.finaliseAddObservations()
+
+        if pointwise:
+            # type JArray, e.g. <class 'jpype._jarray.double[]'>, can be indexed with arr[i]
+            return calc.computeLocalUsingPreviousObservations(jX, jY)
+        else:
+            # float
+            return calc.computeAverageLocalOfObservations()
+
+    # Set name and docstrings of decorated function
+    __compute.__name__ = calcName.__name__
+    __compute.__doc__  = calcName.__doc__ + _MICalc.__doc__
+    return __compute
+
+
 class MutualInfo:
     """
     Class for calling various JIDT mutual information calculators for discrete
@@ -131,70 +194,6 @@ class MutualInfo:
             return self.ContinuousKernel
         else:
             raise ValueError(f"Estimator {name} not supported")
-
-
-    def _MICalc(calcName: Callable[None, str]) -> Union[np.ndarray, float]:
-        """
-        Store the time series as observations in the mutual information calculators,
-        used to estimate joint distributions between X and Y by using the pairs
-        X[t], Y[t+dt], then compute the mutual information.
-
-        Params
-        ------
-        X
-            1st time series of shape (T, Dx) i.e. source.
-            T is time or observation index, Dx is variable number.
-        Y
-            2nd time series of shape (T, Dy) i.e. target
-            T is time or observation index, Dy is variable number.
-        pointwise
-            if set use pointwise MI rather than Shannon MI, i.e. applied on
-            specific states rather than integrateing whole distributions.
-            this returns a PMI value for each pair X[t], Y[t+dt] rather than
-            a value for the whole time series
-        dt
-            source-destination lag
-
-        Returns
-        ------
-        I(X[t], Y[t+dt]) for t in range(0, T - dt)
-            if pointiwse = False, the MI is a float in nats not bits!
-            if pointwise = True,  the MI is a list of floats, in nats, for every
-                                  pair of values in the two time series
-        """
-        def __compute(
-                X: np.ndarray, Y: np.ndarray,
-                pointwise: bool = False, dt: int = 0,
-            ) -> np.ndarray:
-            """
-            Whenever Python decorator @_MICalc is used with a function, this function
-            returns the mutual info as computed with the estimator specified by the
-            function.
-            """
-            if len(X) != len(Y):
-                raise ValueError('Cannot compute MI for time series of different lengths')
-
-            jX, jY = (JVM.javify(X[dt:]), JVM.javify(Y[:-dt]))
-
-            calc = jp.JClass(calcName())()
-            calc.initialise(X.shape[1], Y.shape[1])
-            #TODO: doesnt work
-            #calc.setProperty('PROP_TIME_DIFF', str(dt))
-            calc.setObservations(jX, jY)
-            calc.finaliseAddObservations()
-
-            if pointwise:
-                # type JArray, e.g. <class 'jpype._jarray.double[]'>, can be indexed with arr[i]
-                return calc.computeLocalUsingPreviousObservations(jX, jY)
-            else:
-                # float
-                return calc.computeAverageLocalOfObservations()
-
-        # Set name and docstrings of decorated function
-        __compute.__name__ = calcName.__name__
-        #TODO: scope issue when adding docstrings from _MICalc
-        __compute.__doc__  = calcName.__doc__ #+ MutualInfo._MICalc.__doc__
-        return __compute
 
 
     @_MICalc
