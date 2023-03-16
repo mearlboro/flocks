@@ -378,7 +378,7 @@ class EmergenceCalc:
 
         where  t' - t = self.dt
         """
-        delta = max(vx - sum(self.xmiCalcs[(i, j)] for i in range(self.n) if i != j)
+        delta = max(vx - sum(self.xmiCalcs[(i, j)] for i in range(self.n))
                     for j, vx in enumerate(self.vxmiCalcs.values()) )
         return delta
 
