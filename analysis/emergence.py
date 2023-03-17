@@ -98,21 +98,6 @@ class JVM:
 
 
 
-class Emergence(NamedTuple):
-    """
-    Tuple container for all results of emergence calculation, using named fields
-    to make addressing each quantity and the decomposition of Psi easier.
-    """
-    psi: float
-    psik1: float
-    syn: float
-    red: float
-    corr: float
-    gamma: float
-    delta: float
-
-
-
 def _MICalc(calcName: Callable[None, str]) -> Union[np.ndarray, float]:
     """
     Store the time series as observations in the mutual information calculators,
@@ -246,6 +231,21 @@ class MutualInfo:
 
 
 
+class Emergence(NamedTuple):
+    """
+    Tuple container for all results of emergence calculation, using named fields
+    to make addressing each quantity and the decomposition of Psi easier.
+    """
+    psi: float
+    psik1: float
+    syn: float
+    red: float
+    corr: float
+    gamma: float
+    delta: float
+
+
+
 class EmergenceCalc:
     """
     Computes quanities related to causal emergence using a given MutualInfo calculator
@@ -369,6 +369,19 @@ class EmergenceCalc:
             return syn - red + corr
 
 
+    def gamma(self) -> float:
+        """
+        Use MI quantities computed in the intialiser to derive practical criterion
+        for emergence.
+
+            Gamma = max_j I(V(t); X_j(t'))
+
+        where  t' - t = self.dt
+        """
+        gamma = max(self.vxmiCalcs.values())
+        return gamma
+
+
     def delta(self) -> float:
         """
         Use MI quantities computed in the intialiser to derive practical criterion
@@ -381,19 +394,6 @@ class EmergenceCalc:
         delta = max(vx - sum(self.xmiCalcs[(i, j)] for i in range(self.n))
                     for j, vx in enumerate(self.vxmiCalcs.values()) )
         return delta
-
-
-    def gamma(self) -> float:
-        """
-        Use MI quantities computed in the intialiser to derive practical criterion
-        for emergence.
-
-            Gamma = max_j I(V(t); X_j(t'))
-
-        where  t' - t = self.dt
-        """
-        gamma = max(self.vxmiCalcs.values())
-        return gamma
 
 
 
@@ -436,7 +436,7 @@ def system(
         calc = EmergenceCalc(X, V, mutualInfo, pointwise = pointwise, dt = dt)
         psi = calc.psi(decomposition = True, correction = correction)
         psi = ( psi[0] - psi[1], psi[0] - psi[1] + psi[2], *psi )
-        emg = Emergence(*psi, calc.delta(), calc.gamma())
+        emg = Emergence(*psi, calc.gamma(), calc.delta())
         emgs.append(emg)
 
     return emgs
