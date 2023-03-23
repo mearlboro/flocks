@@ -26,7 +26,7 @@ def __run(sim: 'FlockModel', t: int) -> None:
 @click.option('-t',  default = 100,  help='Time to run the simulation')
 @click.option('-n',  default = 10,   help='Number of particles')
 @click.option('-l',  default = 2.0,  help='System size')
-@click.option('-e',  default = 0,    help='Perturbation of angular velocity')
+@click.option('-e',  default = 0.0,  help='Perturbation of angular velocity')
 @click.option('-v',  default = 0.1,  help='Absolute velocity')
 @click.option('-r',  default = 1.0,  help='Radius or number of neighbours to follow')
 @click.option('-dt', default = 1.0,  help='Time step')
