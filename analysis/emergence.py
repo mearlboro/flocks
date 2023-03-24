@@ -1,11 +1,16 @@
 """
-Simple class implementing a running calculator for the quantities related to
-the PhiID theory of causal emergence, as described in:
+Calculate the quantities related to the PhiID theory of causal emergence, as
+described in:
 
 Rosas FE*, Mediano PAM*, Jensen HJ, Seth AK, Barrett AB, Carhart-Harris RL, et
 al. (2020) Reconciling emergences: An information-theoretic approach to
 identify causal emergence in multivariate data. PLoS Comput Biol 16(12):
 e1008289.
+
+Uses the Java JIDT package for computing information-theoretic quantites, in
+particular the MutualInfoCalculatorMultivariate.
+See also https://github.com/jlizier/jidt/wiki/PythonExamples for using JIDT
+in Python.
 """
 
 import click
@@ -13,311 +18,552 @@ import jpype as jp
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import sys
 
-from typing import Callable, Iterable
+from typing import Callable, Dict, Iterable, List, NamedTuple, Tuple, Union
 
-from flock.model import FlockModel
-from util.geometry import centre_of_mass
+from analysis import order
+from analysis.order import EnumParams as params
+from flock.model import Flock, FlockModel
+from flock.factory import FlockFactory
 from util import util
+from util.geometry import EnumBounds
 
 
-INFODYNAMICS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'infodynamics.jar')
-PSI_START = -5
-
-def javify(Xi: np.ndarray) -> jp.JArray:
+class JVM:
     """
-    Convert a numpy array into a Java array to pass to the JIDT classes and
-    functions.
-    Given a 1-dimensional np array of shape (D,)  , return Java array of size D
-    Given a 2-dimensional np array of shape (1, D), return Java array of size D
-
-    Params
-    ------
-    Xi
-        numpy array of shape (D,) or (1,D) representing one 'micro' part of the
-        system or one value of the macroscopic feature
-
-    Returns
-    ------
-    jXi
-        the Xi array cast to Java Array
+    Singleton class for managing the JVM for calls to infodynamics.jar
     """
-    if len(Xi.shape) == 1:
-        D = Xi.shape[0]
-        Xi = Xi[np.newaxis, :]
-        jXi = jp.JArray(jp.JDouble, D)(Xi.tolist())
-    else:
-        D = Xi.shape[1]
-        jXi = jp.JArray(jp.JDouble, D)(Xi.tolist())
+    INFODYNAMICS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'infodynamics.jar')
 
-    return jXi
-
-
-class EmergenceCalculator():
-    def __init__(self,
-            use_correction: bool = True,
-            use_filter: bool = True,
-            psi_buffer_size : int = 20,
-            observation_window_size : int = -1,
-            use_local : bool = True,
-            sample_threshold: int = 0
-        ) -> None:
+    @classmethod
+    def start(self) -> None:
         """
-        Construct the emergence calculator by setting member variables and
-        checking the JVM is started. The JIDT calculators will be initialised
-        later, when the first batch of data is provided.
-
-        After calculating the value of emergence for a given frame, it is
-        median-filtered with recent past values to reduce volatility.
-
-        Parameters
-        ----------
-        use_correction : bool
-            Whether to use the 1st-order lattice correction for emergence
-            calculation. (default: true)
-        use_filter : bool
-            Whether to use the median filter (default: true).
-        psi_buffer_size : int
-            Number of past emergence values used for the median filter
-            (default: 20).
-        observation_window_size : int
-            Number of past observations to take into account for the calculation
-            of psi. If negative or zero, use all past data (default: -1).
-        use_local : bool
-            If true, computes psi the local (i.e. pointwise) mutual info of
-            the latest sample. If false, uses the standard (i.e. average) mutual
-            info of the observation window (default: true).
-        sample_threshold : int
-            Number of timesteps to wait before calculation, at least as many as
-            the dimenstions of the system. If smaller, will automatically use a
-            value equal to the number of the variables in the system. (default: 0)
+        Start Java Virtual Machine to run Java code inside this Python repository
         """
-
-        self.is_initialised = False
-        self.sample_counter = 0
-
-        self.use_filter = use_filter
-        self.use_correction = use_correction
-        self.psi_buffer_size = psi_buffer_size
-        self.sample_threshold = sample_threshold
-        self.past_psi_vals = [PSI_START] * psi_buffer_size
-
-        self.observation_window_size = observation_window_size
-        self.observations_V = []
-        self.observations_X = []
-
-        self.use_local = use_local
-
         if not jp.isJVMStarted():
-            jp.startJVM(jp.getDefaultJVMPath(), '-ea', '-Djava.class.path=%s'%INFODYNAMICS_PATH)
+            print('Starting JVM...')
+            try:
+                jp.startJVM(jp.getDefaultJVMPath(), '-ea',
+                            f"-Djava.class.path={self.INFODYNAMICS_PATH}")
+                print('Done.')
+            except:
+                print('Error starting JVM')
+                sys.exit(0)
 
-        print(f'Successfully initialised EmergenceCalculator.')
-        print(f' observations:   {observation_window_size},')
-        print(f' use correction: {use_correction}')
-        print(f' use local:      {use_local}')
-        print(f' use filter:     {use_filter}')
-        if use_filter:
-            print(f' buffer: {psi_buffer_size}')
-
-
-    def initialise_calculators(self, X: np.ndarray, V: np.ndarray) -> None:
+    @classmethod
+    def stop(self) -> None:
         """
-        """
-        self.N = len(X)
-        if self.sample_threshold < self.N:
-            self.sample_threshold = self.N
-
-        V = V[np.newaxis, :]
-        self.xmiCalcs = []
-        for Xi in X:
-            Xi = Xi[np.newaxis, :]
-            self.xmiCalcs.append(jp.JClass('infodynamics.measures.continuous.gaussian.MutualInfoCalculatorMultiVariateGaussian')())
-            self.xmiCalcs[-1].initialise(Xi.shape[1], V.shape[1])
-            self.xmiCalcs[-1].startAddObservations()
-
-        self.vmiCalc = jp.JClass('infodynamics.measures.continuous.gaussian.MutualInfoCalculatorMultiVariateGaussian')()
-        self.vmiCalc.initialise(V.shape[1], V.shape[1])
-        self.vmiCalc.startAddObservations()
-
-        self.is_initialised = True
-
-
-    def update_calculators(self, V: np.ndarray) -> None:
-        """
-        """
-        jV = javify(V)
-        jVp = javify(self.past_V)
-        jXp = [javify(Xip) for Xip in self.past_X]
-
-        if self.observation_window_size <= 0:
-            self.vmiCalc.addObservations(jVp, jV)
-            for jXip,calc in zip(jXp, self.xmiCalcs):
-                calc.addObservations(jXip, jV)
-
-        else:
-            self.observations_V.append((jVp, jV))
-            self.observations_X.append((jXp, jV))
-            if len(self.observations_V) > self.observation_window_size:
-                self.observations_V.pop(0)
-                self.observations_X.pop(0)
-
-            self.initialise_calculators(self.past_X, V)
-            for jVp, jV in self.observations_V:
-                self.vmiCalc.addObservations(jVp, jV)
-            for jXp, jV in self.observations_X:
-                for jXip,calc in zip(jXp, self.xmiCalcs):
-                    calc.addObservations(jXip, jV)
-
-
-    def compute_psi(self, V: np.ndarray) -> float:
-        """
-        """
-        self.vmiCalc.finaliseAddObservations()
-        jV = javify(V)
-
-        if self.use_local:
-            psi = self.vmiCalc.computeLocalUsingPreviousObservations(
-                    javify(self.past_V), jV)[0]
-            for Xip,calc in zip(self.past_X, self.xmiCalcs):
-                calc.finaliseAddObservations()
-                psi -= calc.computeLocalUsingPreviousObservations(javify(Xip), jV)[0]
-
-            if self.use_correction:
-                marginal_mi = [ calc.computeAverageLocalOfObservations()
-                                for calc in self.xmiCalcs ]
-                psi += (self.N - 1) * np.min(marginal_mi)
-
-        else:
-            psi = self.vmiCalc.computeAverageLocalOfObservations()
-            for calc in self.xmiCalcs:
-                calc.finaliseAddObservations()
-                psi -= calc.computeAverageLocalOfObservations()
-
-            if self.use_correction:
-                marginal_mi = [ calc.computeAverageLocalOfObservations()
-                                for calc in self.xmiCalcs ]
-                psi += (self.N - 1) * np.min(marginal_mi)
-
-        return psi
-
-
-    def update_and_compute(self, X: Iterable[np.ndarray], V: np.ndarray) -> float:
-        """
-        """
-        psi = PSI_START
-        if not self.is_initialised:
-            self.initialise_calculators(X, V)
-
-        else:
-            self.update_calculators(V)
-            if self.sample_counter > self.sample_threshold:
-                psi = self.compute_psi(V)
-
-        self.past_X = X
-        self.past_V = V
-        self.sample_counter += 1
-
-        self.past_psi_vals.append(psi)
-        if len(self.past_psi_vals) > self.psi_buffer_size:
-            self.past_psi_vals.pop(0)
-
-        if self.use_filter:
-            psi_filt = np.nanmedian(self.past_psi_vals)
-            return psi_filt
-        else:
-            return psi
-
-
-    def exit(self) -> None:
-        """
-        Gracefully shut down JVM. Call whenever done with the calculator.
+        Gracefully exit Java Virtual Machine
         """
         if jp.isJVMStarted():
             print('Shutting down JVM...')
             jp.shutdownJVM()
+            print('Done.')
+
+    @classmethod
+    def javify(self, X: np.ndarray) -> jp.JArray:
+        """
+        Convert a numpy array into a Java array to pass to the JIDT classes and
+        functions.
+        Given a 1-dim np array of shape (D,), return Java array[] of size D
+        Given a 2-dim np array of shape (1, D), return Java array[] of size D
+        Given a 2-dim np array of shape (D1, D2), return Java array[][] of size D1 x D2
+
+        Params
+        ------
+        X
+            numpy array of shape (D,) or (D1,D2) representing a time series
+
+        Returns
+        ------
+        jX
+            the X array cast to Java Array
+        """
+        X = np.array(X)
+
+        if len(X.shape) == 1:
+            dim = 1
+            X = X[np.newaxis, :]
+        else:
+            dim = len(X.shape)
+
+        if dim > 1:
+            jX = jp.JArray(jp.JDouble, dim)(X.tolist())
+        else:
+            # special case to deal with scalars
+            jX = jp.JArray(jp.JDouble, 1)(X.flatten())
+
+        return jX
 
 
 
-def plot_psi(
-        ts: np.ndarray, psis: np.ndarray, use_correction: bool,
-        use_local: bool, use_filter: bool, obs_win: int, show: bool
-    ) -> None:
+def _MICalc(calcName: Callable[None, str]) -> Union[np.ndarray, float]:
+    """
+    Store the time series as observations in the mutual information calculators,
+    used to estimate joint distributions between X and Y by using the pairs
+    X[t], Y[t+dt], then compute the mutual information.
 
-    label = 'Using local MI' if use_local else 'Using average MI'
-    label += ' and all past states' if obs_win <= 0 else f' and {obs_win} past states'
-    if use_filter:
-        label += ' (median filtered)'
-    ylabel = '(1,1)' if use_correction else '(1)'
-    ylabel = '$\\Psi^{' + ylabel + '}(\\tilde{x})$'
+    Params
+    ------
+    X
+        1st time series of shape (T, Dx) i.e. source.
+        T is time or observation index, Dx is variable number.
+    Y
+        2nd time series of shape (T, Dy) i.e. target
+        T is time or observation index, Dy is variable number.
+    pointwise
+        if set use pointwise MI rather than Shannon MI, i.e. applied on
+        specific states rather than integrateing whole distributions.
+        this returns a PMI value for each pair X[t], Y[t+dt] rather than
+        a value for the whole time series
+    dt
+        source-destination lag
 
-    fig = plt.figure()
-    plt.plot(ts, psis, label = label)
-    plt.xlabel('t (s)')
-    plt.ylabel(ylabel)
-    plt.legend()
+    Returns
+    ------
+    I(X[t], Y[t+dt]) for t in range(0, T - dt)
+        if pointiwse = False, the MI is a float in nats not bits!
+        if pointwise = True,  the MI is a list of floats, in nats, for every
+                                pair of values in the two time series
+    """
+    def __compute(
+            X: np.ndarray, Y: np.ndarray,
+            pointwise: bool = False, dt: int = 0,
+        ) -> np.ndarray:
+        """
+        Whenever Python decorator @_MICalc is used with a function, this function
+        returns the mutual info as computed with the estimator specified by the
+        function.
+        """
+        if len(X) != len(Y):
+            raise ValueError('Cannot compute MI for time series of different lengths')
 
-    if show:
-        plt.show()
+        jX, jY = (JVM.javify(X[dt:]), JVM.javify(Y[:-dt]))
 
-    return fig
+        calc = jp.JClass(calcName())()
+        calc.initialise(X.shape[1], Y.shape[1])
+        #TODO: doesnt work
+        #calc.setProperty('PROP_TIME_DIFF', str(dt))
+        calc.setObservations(jX, jY)
+        calc.finaliseAddObservations()
+
+        if pointwise:
+            # type JArray, e.g. <class 'jpype._jarray.double[]'>, can be indexed with arr[i]
+            return calc.computeLocalUsingPreviousObservations(jX, jY)
+        else:
+            # float
+            return calc.computeAverageLocalOfObservations()
+
+    # Set name and docstrings of decorated function
+    __compute.__name__ = calcName.__name__
+    __compute.__doc__  = calcName.__doc__ + _MICalc.__doc__
+    return __compute
+
+
+class MutualInfo:
+    """
+    Class for calling various JIDT mutual information calculators for
+    continuous variables. Returns class functions that can be passed
+    to EmergenceCalc to compute mutual information.
+    """
+    @classmethod
+    def get(self, name: str) -> Callable[None, str]:
+        if name.lower() == 'gaussian':
+            return self.ContinuousGaussian
+        elif name.lower() == 'kraskov1':
+            return self.ContinuousKraskov1
+        elif name.lower() == 'kraskov2':
+            return self.ContinuousKraskov2
+        elif name.lower() == 'kernel':
+            return self.ContinuousKernel
+        else:
+            raise ValueError(f"Estimator {name} not supported")
+
+    @_MICalc
+    def ContinuousGaussian() -> str:
+        """
+        Compute continuous mutual information (using differential entropy instead
+        of Shannon entropy) between time series X and Y.
+        The estimator assumes that the underlying distributions for the time
+        series are Gaussian and that the time series are stationary.
+        """
+        return 'infodynamics.measures.continuous.gaussian.MutualInfoCalculatorMultiVariateGaussian'
+
+    @_MICalc
+    def ContinuousKraskov1() -> str:
+        """
+        Compute continuous mutual information using the Kraskov estimator between
+        time series X and Y, specifically the 1nd algorithm in:
+
+        Kraskov, A., Stoegbauer, H., Grassberger, P., "Estimating mutual information",
+        Physical Review E 69, (2004) 066138.
+
+        The mutual info calculator makes no Gaussian assumptions, but the time series
+        must be stationary.
+        """
+        return 'infodynamics.measures.continuous.kraskov.MutualInfoCalculatorMultiVariateKraskov1'
+
+    @_MICalc
+    def ContinuousKraskov2() -> str:
+        """
+        Compute continuous mutual information using the Kraskov estimator between
+        time series X and Y, specifically the 2nd algorithm in:
+
+        Kraskov, A., Stoegbauer, H., Grassberger, P., "Estimating mutual information",
+        Physical Review E 69, (2004) 066138.
+
+        The mutual info calculator makes no Gaussian assumptions, but the time series
+        must be stationary.
+        """
+        return 'infodynamics.measures.continuous.kraskov.MutualInfoCalculatorMultiVariateKraskov2'
+
+    @_MICalc
+    def ContinuousKernel() -> str:
+        """
+        Compute continuous mutual information using box-kernel estimation between
+        time series X and Y.
+        The mutual info calculator makes no Gaussian assumptions, but the time series
+        must be stationary.
+        """
+        return 'infodynamics.measures.continuous.kernel.MutualInfoCalculatorMultiVariateKernel'
+
+
+
+class Emergence(NamedTuple):
+    """
+    Tuple container for all results of emergence calculation, using named fields
+    to make addressing each quantity and the decomposition of Psi easier.
+    """
+    psi: float
+    psik1: float
+    syn: float
+    red: float
+    corr: float
+    gamma: float
+    delta: float
+
+
+
+class EmergenceCalc:
+    """
+    Computes quanities related to causal emergence using a given MutualInfo calculator
+    function on time series X and V
+    """
+    def __init__(self,
+            X: np.ndarray, V: np.ndarray,
+            mutualInfo: Callable[[np.ndarray, np.ndarray, bool, int], float],
+            pointwise: bool = False,
+            dt: int =  1
+        ) -> None:
+        """
+        Initialise class with the time series corresponding to the parts Xs and
+        the whole V, and set any properties for the computation. By default, works
+        with multivariate systems, so if any txn 2D array of t states of n scalar
+        variable is passed, reshape the array to (t, n, 1) first.
+
+        Params
+        ------
+        X
+            system micro variables of shape (t, n, d) for n d-dimensional time
+            series corresponding to the 'parts' in the system
+        V
+            candidate emergence feature: d-dimensional system macro variable of
+            shape (t, d)
+        mutualInfo
+            mutual information function to use from MutualInfo class
+        pointwise
+            whether to use pointwise (p log p) or Shannon (sum p log p) MI
+        dt
+            number of time steps in the future to predict
+        """
+        print(f"Initialise Emergence Calculator using {'pointwise' if pointwise else 'Shannon'} mutual information with t'=t+{dt}")
+        print(f"  and MI estimator {mutualInfo.__name__}")
+
+        if len(X.shape) < 3:
+            X = np.atleast_3d(X)
+        if len(V.shape) < 2:
+            V = V[:, np.newaxis]
+
+        (t, n, d) = X.shape
+        self.n = n
+        self.V = V
+        self.X = [ X[:, i] for i in range(n) ]
+        print(f"  for {n} {d}-dimensional variables and {V.shape[1]}-dimensional macroscopic feature")
+        print(f"  as time series of length {t}")
+
+        print(f"Computing mutual informations: MI(V[t], V[t+{dt}])")
+        self.vmiCalc = mutualInfo(V,  V,  pointwise, dt)
+
+        print(f"Computing mutual informations: MI(Xi[t], V[t+{dt}])")
+        self.xvmiCalcs = dict()
+        for i in range(n):
+            self.xvmiCalcs[i] = mutualInfo(self.X[i], V, pointwise, dt)
+
+        print(f"Computing mutual informations: MI(V[t], Xi[t+{dt}])")
+        self.vxmiCalcs = dict()
+        for i in range(n):
+            self.vxmiCalcs[i] = mutualInfo(V, self.X[i], pointwise, dt)
+
+        print(f"Computing mutual informations: MI(Xi[t], Xj[t+{dt}])")
+        self.xmiCalcs = dict()
+        for i in range(n):
+            for j in range(n):
+                self.xmiCalcs[(i, j)] = mutualInfo(self.X[i], self.X[j], pointwise, dt)
+
+        print('Done.')
+
+
+    def psi(self,
+            decomposition: bool = True, correction: int = 0
+        ) -> Union[float, Tuple[float, float, float]]:
+        """
+        Use MI quantities computed in the intialiser to derive practical criterion
+        for emergence.
+
+            Psi = Synergy - Redundancy + Correction
+
+        where:
+            Synergy               MI(V(t); V(t'))
+            Redundancy            sum_i MI(X_i(t); V(t'))
+            1st order Correction  (N-1) min(MI(X_i(t); V(t'))
+
+        where  t' - t = self.dt
+
+        Params
+        ------
+        decomposition
+            if True, return Synergy, Redundancy and Correction instead of Psi
+        correction
+            compute lattice correction of order given by this value. Currently
+            supports only 0 and 1.
+
+        Returns
+        ------
+        synergy
+            mutual information between current and past values of V
+        redundancy
+            mutual information between past values of each micro variable X and
+            current value of V
+        correction
+            the minimal mutual information between current and past values of X
+            multiplied by N-1, to correct (if needed) the multiple counting of
+            unique information in the redundancy term
+        """
+        msg = "Computing Psi "
+        if correction:
+            msg += f"using lattice correction of order {correction}"
+        print(msg)
+
+        syn  = self.vmiCalc
+        red  = sum(xvmi for xvmi in self.xvmiCalcs.values())
+        corr = 0
+
+        if correction == 1:
+            corr += (self.n - 1) * min(self.xvmiCalcs.values())
+
+        if decomposition:
+            return syn, red, corr
+        else:
+            return syn - red + corr
+
+
+    def gamma(self) -> float:
+        """
+        Use MI quantities computed in the intialiser to derive practical criterion
+        for emergence.
+
+            Gamma = max_j I(V(t); X_j(t'))
+
+        where  t' - t = self.dt
+        """
+        gamma = max(self.vxmiCalcs.values())
+        return gamma
+
+
+    def delta(self) -> float:
+        """
+        Use MI quantities computed in the intialiser to derive practical criterion
+        for emergence.
+
+            Delta = max_j (I(V(t);X_j(t')) - sum_i I(X_i(t); X_j(t'))
+
+        where  t' - t = self.dt
+        """
+        delta = max(vx - sum(self.xmiCalcs[(i, j)] for i in range(self.n))
+                    for j, vx in enumerate(self.vxmiCalcs.values()) )
+        return delta
+
+
+
+
+def system(
+        X: np.ndarray, V: np.ndarray, dts: List[int],
+        mutualInfo: Callable, pointwise: bool = False, correction: int = 1
+    ) -> List['Emergence']:
+    """
+    Initialise emergence calculator between time series X and V and return
+    corrected, decomposed Psi, Gamma and Delta for time delays in dt.
+
+    Assume stationarity, i.e. the underlying distribution for the value of
+    variable i is the same regardless of time t. If the system is not stationary,
+    use `ensemble` with `stationary = False` on multiple realisations of the
+    system instead.
+
+    Params
+    ------
+    Xs
+        array of micro variables of shape (r, t, n, d1) for r realisations of a
+        system of n d1-dimensional variables over t timesteps
+    V
+        array of emergence features of shape (r, t, d2) for each
+    dts
+        an array of all the numbers of time steps in the future to predict
+    mutualInfo
+        mutual information function to use from MutualInfo class
+    pointwise
+        whether to use pointwise (p log p) or Shannon (sum p log p) MI
+    correction
+        order of the lattice correction when computing Psi
+
+    Returns
+    ------
+    decomposed Psi, Gamma, Delta as scalars in a (named) tuple foreach dt
+    """
+    emgs = []
+    for dt in dts:
+        calc = EmergenceCalc(X, V, mutualInfo, pointwise = pointwise, dt = dt)
+        psi = calc.psi(decomposition = True, correction = correction)
+        psi = ( psi[0] - psi[1], psi[0] - psi[1] + psi[2], *psi )
+        emg = Emergence(*psi, calc.gamma(), calc.delta())
+        emgs.append(emg)
+
+    return emgs
+
+
+def ensemble(
+        stationary: bool,
+        Xs: np.ndarray, Vs: np.ndarray, dts: int,
+        mutualInfo: Callable, correction: int = 1,
+        path: str = ''
+    ) -> List[Tuple['Emergence', 'Emergence']]:
+    """
+    Compute emergence between time series of components X and a macroscopic
+    feature V for a whole ensemble of realisations of the same system, for
+    the time delays given in dts.
+
+    When assuming stationarity, all Xi, V have the same probability distribution
+    regardless of t, so the MI is applied between Xi and V at different times t
+    and t', given by the each dt = t' - t.
+
+    When the system is non-stationary, we cannot directly apply MI between Xi and
+    V at arbitrary times (as the distribution of each Xi and V may be dependent
+    on t). Instead, we take all Xi from the ensemble at the same time t, and V
+    at the time t'.
+
+    Params
+    ------
+    Xs
+        numpy array of shape (r, t, n, d1) for ensembles of r realisations of
+        a system of n d1-dimensional variables over t timesteps
+    Vs
+        numpy array of shape (r, t, d2) for the instantaneous d2-dimensional order
+        parameter computed for each ensemble at each timestep
+    dts
+        array with a range of scalar time differences
+    mutualInfo
+        mutual information function to use from MutualInfo class
+    correction
+        order of the lattice correction when computing Psi
+    path
+        if set, dump the results of for the ensemble to path
+
+    Returns
+    ------
+    a list of mean and standard deviation values for each emergence quantity as
+    pairs of Emergence named tuples, with statistics for each dt
+    """
+    estats = []
+    stats = lambda xs: (np.mean(xs, axis = 0), np.std(xs, axis = 0))
+
+    R, T, N, D1 = Xs.shape[:4]
+    if len(Vs.shape) > 2:
+       D2 = Vs.shape[2]
+    else:
+       D2 = 1
+
+    for dt in dts:
+        print(f"Computing emergence quantities for a time delay of {dt}")
+        emgs = []
+
+        if stationary:
+            # if we can assume stationarity, then we simply compute MI between
+            # the time series with time delay dt
+            for X, V in zip(Xs, Vs):
+                emgs.append(system(X, V, [ dt ], mutualInfo)[0])
+        else:
+            # for non-stationary systems, we need to always compute MI between
+            # all Xi across all R realisations at the same time t and t+dt, so
+            # concatenate them and pass to the calculator with time delay T
+            for t in range(1, T - dt - 1):
+                print(f"Computing emergence from t={t} to t'={t*dt}")
+                X  = np.concatenate((
+                        Xs[:, t, :].reshape(R, N, D1),
+                        Xs[:, t + dt, :].reshape(R, N, D1)))
+                V  = np.concatenate((
+                        Vs[:, t].reshape(R, D2),
+                        Vs[:, t + dt].reshape(R, D2)))
+                emgs.append(system(X, V, [ R ], mutualInfo)[0])
+
+        mean, std = stats(np.array(emgs))
+        estats.append((Emergence(*mean), Emergence(*std)))
+
+    if path:
+        np.save(f"{path}/ensemble_stats", estats)
+
+    return estats
+
 
 
 @click.command()
-@click.option('--model',  help = 'Directory where system trajectories are stored for the model')
-@click.option('--use-correction', is_flag = True, default = True,
-              help = 'If true, use first-order lattice correction for emergence calculation.')
-@click.option('--use-local',  is_flag = True, default = False,
-              help = 'If true, use first-order lattice correction for emergence calculation.')
-@click.option('--use-filter', is_flag = True, default = True,
-              help = 'If true, apply median filter to the last n computations')
-@click.option('--filter-buffer', default = 5,
-              help = 'Number of timesteps to filter over')
-@click.option('--observation-window', default = -1,
-              help = 'Number of timesteps used for calculating Psi. Use all past data if <= 0.')
+@click.option('--model', help = 'Directory where system trajectories are stored')
+@click.option('--est', type = click.Choice([ 'Gaussian', 'Kraskov1', 'Kraskov2', 'Kernel']),
+              help = 'Mutual Info estimator to use', required = True)
+@click.option('--decomposition', is_flag = True, default = False,
+              help = 'If true, decompose Psi into the synergy, redundancy, and correction.')
+@click.option('--correction', type = int, default = 1,
+              help = 'Use nth-order lattice correction for emergence calculation.')
+@click.option('--pointwise',  is_flag = True, default = False,
+              help = 'If true, use pointwise mutual information for emergence calculation.')
 @click.option('--threshold',
               help = 'Number of timesteps to wait before calculation, at least as many as the dimenstions of the system')
-def test(model: str, use_correction: bool, use_local: bool, use_filter: bool,
-        filter_buffer: int, observation_window: int, threshold: int) -> None:
+def test(model: str, est: str,
+         decomposition: bool, correction: bool, pointwise: bool, threshold: int
+    ) -> None:
     """
-    Test the emergence calculator on the trajectories specified in `filename`.
+    Test the emergence calculator on the trajectories specified in `filename`, or
+    on a random data stream.
     """
-
-    ts   = []
-    psis = []
-    thres = 0
 
     if model:
-        m = FlockModel.load(model)
+        m = FlockFactory.load(model)
         X = m.traj['X']
-        V = np.array([ centre_of_mass(Xi, m.l, m.bounds) for Xi in X ])
-        ts = np.arange(len(X)) / m.dt
-
-        calc = EmergenceCalculator(
-            use_correction, use_filter, filter_buffer, observation_window, use_local)
-        for i in range(len(X)):
-            psi = calc.update_and_compute(X[i], V[i])
-            if psi:
-                psis.append(psi)
-        thres = len(X[0]) + filter_buffer
-
-        calc.exit()
+        n = m.n
+        M = order.param(params.CMASS, X, [], m.l, m.r, m.bounds)[params.CMASS]
     else:
-        calc = EmergenceCalculator(
-            use_correction, use_filter, filter_buffer, observation_window, use_local)
+        # generate data for 1000 timesteps for 2 variables
+        np.random.seed(0)
+        X = np.random.normal(0, 1, size = (1000, 2))
+        M = np.sum(X, axis = 1)
 
-        X = np.random.randn(100,10,2)
-        V = np.mean(X, axis=1)
-        ts = range(100)
-        for i in ts:
-            psi = calc.update_and_compute(X[i], V[i])
-            psis.append(psi)
-
-        thres = 10 + filter_buffer
-        calc.exit()
-
-    plot_psi(ts[thres:], psis[thres:], use_correction, use_local, use_filter, observation_window,
-            show=True)
+    est = MutualInfo.get(est)
+    dts = [ 1, 2, 3 ]
+    ems = system(X, M, dts, est, pointwise, correction)
+    for dt, e in zip(dts, ems):
+        print(f"{dt}: {e}")
 
 
 if __name__ == "__main__":
+    JVM.start()
     test()
+    JVM.stop()

@@ -20,6 +20,7 @@ class EnumNeighbours(Enum):
     """
     METRIC      = 0
     TOPOLOGICAL = 1
+    UNKNOWN     = 2
 
 
 def ang_mod(a: float) -> float:
@@ -316,7 +317,7 @@ def neighbours(
         X_index = [ (j, X[j]) for j in range(0, N) ]
         X_index.sort(key = lambda jXj: metric_distance(Xi, jXj[1], L, bounds))
         neighbours = [ X_index[i][0] for i in range(0, r + 1) ]
-    else:
+    elif interactions != EnumNeighbours.UNKNOWN:
         raise ValueError(
             f"Interactions must be of type EnumNeighbours, but it's {interactions}")
 

@@ -1,10 +1,70 @@
+#!/usr/bin/python3
+import click
+from enum import Enum
 import numpy as np
+import os
 
-from analysis.emergence import EmergenceCalculator
+from analysis import plot
 from flock.model import FlockModel
+from flock.factory import *
 from util.geometry import *
+from util.util import *
 
-from typing import Any, List, Dict, Tuple
+from typing import Any, Callable, List, Dict, Tuple
+
+
+class EnumParams(Enum):
+    ALL               = 0
+    VICSEK_ORDER      = 1
+    MEAN_ANGLE        = 2
+    VAR_ANGLE         = 3
+    CMASS             = 4
+    MEAN_DIST_CMASS   = 5
+    VAR_DIST_CMASS    = 6
+    MEAN_NEIGHBOURS   = 7
+    MEAN_DIST_NEAREST = 8
+
+    __titles__ = {
+        'ALL'               : '',
+        'VICSEK_ORDER'      : 'Vicsek order parameter',
+        'MEAN_ANGLE'        : 'Mean player direction',
+        'VAR_ANGLE'         : 'Spread of player direction',
+        'CMASS'             : 'Centre of mass',
+        'MEAN_DIST_CMASS'   : 'Mean distance from centre',
+        'VAR_DIST_CMASS'    : 'Spread from centre',
+        'MEAN_NEIGHBOURS'   : 'Mean number of interaction neighbours',
+        'MEAN_DIST_NEAREST' : 'Mean distance to nearest neighbour'
+    }
+
+    __labels__ = {
+        'ALL'               : '',
+		'VICSEK_ORDER'      : '$v_a(t)$',
+		'MEAN_ANGLE'        : '$\\tilde{\\theta}(t)$',
+		'VAR_ANGLE'         : '$\\sigma^2_{\\theta}(t)$',
+		'CMASS'				: '$\\tilde{X}$',
+		'MEAN_DIST_CMASS'   : '$\\tilde{d}_{\\tilde{X}}(t)$',
+		'VAR_DIST_CMASS'    : '$\\sigma^2_{\\tilde{d}}(t)$',
+		'MEAN_NEIGHBOURS'   : '$\\tilde{\\rho}(t)$',
+		'MEAN_DIST_NEAREST' : '$\\tilde{\\delta}(t)$'
+	}
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+    def title(self) -> str:
+        return self.__titles__[self.name]
+
+    def label(self) -> str:
+        return self.__labels__[self.name]
+
+    @classmethod
+    def names(self) -> List[str]:
+        return list(self.__members__.keys())
+
+    @classmethod
+    def members(self) -> List['EnumParams']:
+        return list(self.__members__.values())
+
 
 
 def __vicsek_order(
@@ -34,7 +94,7 @@ def __vicsek_order(
     step, valued 0 if all particles are moving chaotically and 1 if they align
     """
     if Vt is not None:
-        vel = np.array([ [ ang_to_vec(a) * v
+        vel = np.array([ [ ang_to_vec(a) * v / np.mean(V)
                            for a, v in zip(A,  V)  ]
                            for A, V in zip(At, Vt) ])
     else:
@@ -102,15 +162,14 @@ def __mean_var_dist_cmass(
     """
     (T, N, D) = Xt.shape
 
-    cmass = [ centre_of_mass(X, L, bounds)
-              for X in Xt ]
+    cmass = [ centre_of_mass(X, L, bounds) for X in Xt ]
     dist  = np.array([ [ metric_distance(x, c, L, bounds)
                          for x in X ]
                          for (X, c) in zip(Xt, cmass) ])
     mean_dist = np.mean(dist, axis = 1)
     var_dist  = np.var( dist, axis = 1)
 
-    return cmass, mean_dist, var_dist
+    return np.array(cmass), mean_dist, var_dist
 
 
 def __mean_neighbours(
@@ -139,12 +198,15 @@ def __mean_neighbours(
     numpy array of shape (T,) containing the average number of interaction
     neighbours in the system at each time-step
     """
-    ngh = np.array([ [ len(neighbours(i, X, r, EnumNeighbours.METRIC, bounds, L))
-                     for i in range(len(X)) ]
-                     for X in Xt ] )
-    avg_ngh = np.mean(ngh, axis = 1)
+    if r:
+        ngh = np.array([ [ len(neighbours(i, X, r, EnumNeighbours.METRIC, bounds, L))
+                        for i in range(len(X)) ]
+                        for X in Xt ] )
+        avg_ngh = np.mean(ngh, axis = 1)
 
-    return avg_ngh
+        return avg_ngh
+    else:
+        return np.zeros(shape = len(Xt))
 
 
 def __mean_dist_nearest(
@@ -180,79 +242,26 @@ def __mean_dist_nearest(
     return avg_dist
 
 
-def __psi_cmass(
-        Xt: np.ndarray,
-        cmass: np.ndarray
-    ) -> Tuple[Dict[int, float], np.ndarray, np.ndarray]:
-    """
-    Given the positions of all particles in the system, compute the emergence
-    Psi for the centre of mass of the system.
-
-    Params
-    ------
-    Xt : numpy array of shape (T, N, D)
-        positions for all the system variables across all time points
-    cmass : numpy array of shape (N, D)
-        positions for the centre of mass
-
-    Returns
-    ------
-    A tuple of
-    - a dictionary with the timestamps and highest and lowest Psi
-    - a numpy arrays of shape (N,) containing Psi values with global observations
-    - a numpy arrays of shape (N,) containing Psi values with local observations
-    """
-    calc_loc  = EmergenceCalculator(use_filter = False, use_local = True)
-    calc_loc2 = EmergenceCalculator(use_filter = True,  use_local = True)
-    calc_avg  = EmergenceCalculator(use_filter = False, use_local = False)
-
-    (T, N, _) = Xt.shape
-
-    loc  = []
-    loc2 = []
-    avg  = []
-    for t in range(T):
-        psi = calc_avg.update_and_compute(Xt[t], cmass[t])
-        avg.append(psi)
-        psi = calc_loc.update_and_compute(Xt[t], cmass[t])
-        loc.append(psi)
-        psi = calc_loc2.update_and_compute(Xt[t], cmass[t])
-        loc2.append(psi)
-    # exiting one calc gracefully closes the JVM for all of them
-    calc_loc.exit()
-
-    psi_dict = dict()
-    psi_ind = [ (i, loc[i]) for i in range(0, T) ]
-    psi_ind = psi_ind[::10]
-    psi_ind.sort(key = lambda iPsi: iPsi[1], reverse = True)
-    psi_dict.update({ i: Psi for i, Psi in psi_ind[:2] })
-    psi_ind.sort(key = lambda iPsi: iPsi[1])
-    psi_dict.update({ i: Psi for i, Psi in psi_ind[:2] })
-
-    # the first N+buffer observations do not have a Psi computation
-    thres = N if not calc_loc.use_filter else N + calc_loc.psi_buffer_size
-    loc  = np.array(loc[N:])
-    loc2 = np.array(loc2[N:])
-    avg  = np.array(avg[N:])
-
-    return psi_dict, loc, loc2, avg
-
-
 def param(
+        param: 'EnumParams',
         Xt: np.ndarray,
         At: np.ndarray,
         L: int,
         r: float,
         bounds: EnumBounds,
         Vt: np.ndarray = None,
-        v: float = 1.0
-    ) -> Dict[str, Any]:
+        v: float = 0.3,
+    ) -> Dict['EnumParams', Any]:
     """
     Compute relevant order parameters given the trajectories of a system of self
-    propelled particles
+    propelled particles. Implemented in this way to allow different order params
+    to be computed in parallel for multiple systems if needed.
 
     Params
     ------
+    param_name: str
+        name of order parameter to be computed. If null, then return all order
+        parameters as a dict
     Xt : numpy array of shape (T, N, 2)
         positions for all the system variables across all time points
     At : numpy array of shape (T, N)
@@ -271,49 +280,138 @@ def param(
 
     Returns
     ------
-    dict of numpy arrays, for each time step of the simulation, with the exception
-    of the last item which is a dict
-        'vicsek_order':      (T,) Vicsek order parameter
-        'mean_angle':        (T,) mean orientation
-        'std_angle':         (T,) std dev of orientation
-        'cmass':             (T,D) coordinates of flock centre of mass
-        'mean_dist_cmass':   (T,) mean distance from centre of mass
-        'std_dist_cmass':    (T,) std dev of distance from centre of mass
-        'mean_neighbours':   (T,) mean number of interaction neighbours
-        'mean_dist_nearest': (T,) mean distance to nearest neighbour
-        'psi_cmass_loc':     (T,) Psi of centre of mass computed with local MI, unfiltered
-        'psi_cmass_loc2':    (T,) Psi of centre of mass computed with local MI, filtered
-        'psi_cmass_avg':     (T,) Psi of centre of mass computed with average MI
-        'psi_cmass_minmax:   (T,) Dict of int float pairs containing the time of highest
-                                  unfiltered local Psi and the Psi value
+    dict with parameter name as key, and numpy array as value. If no `param_name`
+    is given, then all order parameters are returned in the format below, other
+    wise only the specified one is returned:
+
+        EnumParams.VICSEK_ORDER:      (T,) Vicsek order parameter
+        EnumParams.MEAN_ANGLE:        (T,) mean orientation
+        EnumParams.VAR_ANGLE:         (T,) variance (spread) of orientation
+        EnumParams.CMASS:             (T,D) coordinates of flock centre of mass
+        EnumParams.MEAN_DIST_CMASS:   (T,) mean distance from centre of mass
+        EnumParams.VAR_DIST_CMASS:    (T,) variance (spread) of distance from centre of mass
+        EnumParams.MEAN_NEIGHBOURS:   (T,) mean number of interaction neighbours
+        EnumParams.MEAN_DIST_NEAREST: (T,) mean distance to nearest neighbour
     """
     m = dict()
-
     import time
-    start = time.time()
-    print('Computing Vicsek order parameter')
-    m['vicsek_order'] = __vicsek_order(At, Vt, v)
-    print("Time elapsed: {}s".format(int(time.time() - start)))
 
-    print('Computing mean & standard deviation of angle')
-    m['mean_angle'], m['var_angle'] = __mean_var_angle(At)
-    print("Time elapsed: {}s".format(int(time.time() - start)))
+    param_name = ''
+    if param:
+        param_name = str(param).lower()
 
-    print('Computing mean & standard deviation of distance from cmass')
-    m['cmass'], m['mean_dist_cmass'], m['var_dist_cmass'] = __mean_var_dist_cmass(Xt, bounds, L)
-    print("Time elapsed: {}s".format(int(time.time() - start)))
+    if param_name == '':
+        print('Computing Vicsek order parameter')
+        start = time.time()
+        m[EnumParams.VICSEK_ORDER] = __vicsek_order(At, Vt, v)
+        print("Time elapsed: {}s".format(int(time.time() - start)))
 
-    print('Computing mean number of neighbours')
-    m['mean_neighbours']   = __mean_neighbours(Xt, r, bounds, L)
-    print("Time elapsed: {}s".format(int(time.time() - start)))
+        print('Computing mean & standard deviation of angle')
+        start = time.time()
+        m[EnumParams.MEAN_ANGLE], \
+        m[EnumParams.VAR_ANGLE] = __mean_var_angle(At)
+        print("Time elapsed: {}s".format(int(time.time() - start)))
 
-    print('Computing mean distance to nearest neighbours')
-    m['mean_dist_nearest'] = __mean_dist_nearest(Xt, bounds, L)
-    print("Time elapsed: {}s".format(int(time.time() - start)))
+        print('Computing mean & standard deviation of distance from cmass')
+        start = time.time()
+        m[EnumParams.CMASS], \
+        m[EnumParams.MEAN_DIST_CMASS], \
+        m[EnumParams.VAR_DIST_CMASS] = __mean_var_dist_cmass(Xt, bounds, L)
+        print("Time elapsed: {}s".format(int(time.time() - start)))
 
-    print('Computing Psi for cmass')
-    m['psi_cmass_minmax'], m['psi_cmass_loc'], m['psi_cmass_loc2'], m['psi_cmass_avg'] = __psi_cmass(Xt, m['cmass'])
-    print("Time elapsed: {}s".format(int(time.time() - start)))
+        print('Computing mean number of neighbours')
+        start = time.time()
+        m[EnumParams.MEAN_NEIGHBOURS]   = __mean_neighbours(Xt, r, bounds, L)
+        print("Time elapsed: {}s".format(int(time.time() - start)))
+
+        print('Computing mean distance to nearest neighbours')
+        start = time.time()
+        m[EnumParams.MEAN_DIST_NEAREST] = __mean_dist_nearest(Xt, bounds, L)
+        print("Time elapsed: {}s".format(int(time.time() - start)))
+
+    elif 'vicsek' in param_name:
+        print('Computing Vicsek order parameter')
+        m[EnumParams.VICSEK_ORDER] = __vicsek_order(At, Vt, v)
+
+    elif 'angle' in param_name:
+        print('Computing mean & standard deviation of angle')
+        m[EnumParams.MEAN_ANGLE], \
+        m[EnumParams.VAR_ANGLE] = __mean_var_angle(At)
+
+    elif 'dist_cmass' in param_name:
+        print('Computing mean & standard deviation of distance from cmass')
+        m[EnumParams.CMASS], \
+        m[EnumParams.MEAN_DIST_CMASS], \
+        m[EnumParams.VAR_DIST_CMASS] = __mean_var_dist_cmass(Xt, bounds, L)
+
+    elif 'cmass' in param_name:
+        print('Computing cmass')
+        m[EnumParams.CMASS] = np.array([ centre_of_mass(X, L, bounds) for X in Xt ])
+
+    elif 'mean_neighbours' in param_name:
+        print('Computing mean number of neighbours')
+        m[EnumParams.MEAN_NEIGHBOURS]   = __mean_neighbours(Xt, r, bounds, L)
+
+    elif 'mean_dist_nearest' in param_name:
+        print('Computing mean distance to nearest neighbours')
+        m[EnumParams.MEAN_DIST_NEAREST] = __mean_dist_nearest(Xt, bounds, L)
+
+    else:
+        raise ValueError(f"Param {param_name} not supported")
 
     return m
 
+
+@click.command()
+@click.option('--path', required = True, help = 'Path to load model data from')
+@click.option('--ordp', default = '', help = 'Order parameter to compute, all by default',
+              type = click.Choice(EnumParams.names()))
+@click.option('--redo', default = False,
+              help = 'If data exists, recompute it, otherwise just redo plot')
+def main(path: str, ordp: str, redo: bool) -> None:
+    """
+    After a simulation or experiment is run, compute (and plot) the results by
+    showing trajectories, order parameters, susceptibilities, and histograms for the
+    most 'interesting' states of that single run.
+
+    It is assume that the simulation has a directory consistent with the mkdir
+    method of the Flock abstract class, i.e. the dirname begins with the model
+    name, followed by underscore, and other model details
+
+        {name}(_{info})+(_{paramname}{paramval})+_{seed}?-id
+
+    Run from the root pyflocks/ folder, will save the order parameters as CSV
+    files in out/order and the plots in out/plt.
+
+        python -m analysis.order [flags]
+    """
+    exp = FlockFactory.load(path)
+
+    ords = dict()
+    if ordp:
+        ordp = EnumParams[ordp]
+
+    parampth = exp.mkdir('out/order/')
+
+    if ordp != EnumParams.ALL:
+        if os.path.exists(f"{parampth}/{ordp}.txt") and not redo:
+            ords = { ordp: load_var(f"{parampth}/{ordp}.txt") }
+        else:
+            ords = param(ordp, exp.traj['X'], exp.traj['A'], exp.l, 0, exp.bounds)
+            save_param(ords[ordp], str(ordp), parampth)
+    else:
+        for ordp in EnumParams.members():
+            if os.path.exists(f"{parampth}/{ordp}.txt") and not redo:
+                ords[ordp] = load_var(f"{parampth}/{ordp}.txt")
+            else:
+                ords |= param(ordp, exp.traj['X'], exp.traj['A'], exp.l, 0, exp.bounds)
+                save_param(ords[ordp], str(ordp), parampth)
+
+    plot.order_params(exp, ords)
+    # TODO: peak detection, plot those states
+    plot.states([ 0, 50, 100, 150, 200, 300, 400, 499 ], exp)
+
+
+
+if __name__ == "__main__":
+    main()

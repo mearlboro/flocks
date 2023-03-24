@@ -5,18 +5,33 @@ import os
 
 from typing import Any, Dict, List
 
-
 def save_var(X: np.ndarray, fn: str, path: str) -> None:
     """
     Append the variable `X` passed as param to the file `fn` in `path`.
     """
     n = len(X)
 
-    with open(f'{path}/{fn}.txt', 'a') as f:
+    with open(f"{path}/{fn}.txt", 'a') as f:
         for i in range(n):
-            f.write( f'{X[i]}\t')
-
+            f.write(f"{X[i]}\t")
         f.write('\n')
+    return
+
+
+def save_param(X: np.ndarray, fn: str, path: str) -> None:
+    """
+    Save the values in X, one per line
+    """
+    n = len(X)
+
+    with open(f"{path}/{fn}.txt", 'a') as f:
+        for i in range(n):
+            if isinstance(X[i], (int, float)):
+                f.write( f"{X[i]}\n")
+            else:
+                for x in X[i]:
+                    f.write(f"{x}\t")
+                f.write('\n')
     return
 
 
@@ -43,3 +58,4 @@ def load_var(filename: str) -> np.ndarray:
         X = [[x for x in line.split('\t') if x != '\n'] for line in f]
 
     return np.array(X).astype(float)
+

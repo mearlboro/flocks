@@ -49,11 +49,34 @@ class ReynoldsModel(FlockModel):
         Biol 16(12): e1008289. https://doi.org/10.1371/journal.pcbi.1008289
     """
 
+    @property
+    def default_params(self) -> Dict[str, float]:
+        """
+        Get model default parameters
+
+            a1 (aggregate) = 0.15
+                fly towards the center of mass of nearby boids
+            a2 (avoidance) = 0.05
+                fly away from nearby boids
+            a3 (alignment) = 0.25
+                align flight velocity to nearby boids
+            r = 1
+                proximity radius, normally 1 if METRIC neighbours are used, or the
+                number of neigbours to follow
+            minv = 3
+                minimum starting absolute velocity
+            maxv = 9
+                maximum starting absolute velocity
+        """
+        return { 'aggregate': 0.15, 'avoidance': 0.05, 'alignment': 0.25,
+                 'minv': 3, 'maxv': 9, 'r': 1 }
+
+
     def __init__(self, seed: int,
                  n: int, l: float,
                  bounds: EnumBounds, neighbours: EnumNeighbours,
-                 a1: float, a2: float, a3: float, r: float,
-                 minv: float = 3, maxv: float = 9, dt: float = 0.01
+                 dt: float = 0.1,
+                 params: Dict[str, float] = {}
         ) -> None:
         """
         Initialise model with parameters, then create random 2D coordinate array
@@ -76,39 +99,62 @@ class ReynoldsModel(FlockModel):
             enum value to whecify whether neighbourd are chosen if they are in a
             certain radius r from current boid (METRIC) or in the r closest
             neighbours (TOPOLOGICAl)
-        a1
-            avoidance: fly away from nearby boids
-        a2
-            alignment: align flight velocity to nearby boids
-        a3
-            aggregate: fly towards the center of mass of nearby boids
-        r  = 1
-            proximity radius, normally 1 if METRIC neighbours are used, or the
-            number of neigbours to follow
-        dt
+        dt = 0.01
             time unit
+        params
+            dictionary of model-specific parameters, must contain:
+
+            aggregate = 0.15
+                fly towards the center of mass of nearby boids
+            avoidance = 0.05
+                fly away from nearby boids
+            alignment = 0.25
+                align flight velocity to nearby boids
+            r = 1
+                proximity radius, normally 1 if METRIC neighbours are used, or the
+                number of neigbours to follow
+            minv = 3
+                minimum starting absolute velocity
+            maxv = 9
+                maximum starting absolute velocity
         """
+        # merge with default params
+        params = self.default_params | params
+
+        # initalise a generic flocking model, seed, and uniform positions of boids
+        super().__init__('Reynolds', seed, n, l, bounds, neighbours, dt, params)
+
         # initialise model-specific parameters
-        self.a1 = a1
-        self.a2 = a2
-        self.a3 = a3
-
-        self.r  = r
-        self.maxv = maxv
-
-        # initialise seed
-        np.random.seed(seed)
+        self.r  = params['r']
+        self.a1 = params['aggregate']
+        self.a2 = params['avoidance']
+        self.a3 = params['alignment']
+        self.maxv = params['maxv']
+        self.minv = params['minv']
 
         # initialise boid angle velocities with uniform random angles
         self.A = np.random.uniform(-np.pi, np.pi, size = n)
 
-        # initialise boid absolute speeds with uniform random values in [3,9]
-        self.V = np.random.uniform(minv, maxv, size = n)
+        # initialise boid absolute speeds with uniform random values in [minv,maxv]
+        self.V = np.random.uniform(self.minv, self.maxv, size = n)
 
-        # initalise a generic flocking model and uniform positions of boids
-        params = { 'avoidance': a1, 'alignment': a2, 'aggregate': a3,
-                    'r': r, 'minv': minv, 'maxv': maxv }
-        super().__init__('Reynolds', seed, n, l, bounds, neighbours, dt, params)
+
+
+    def __aggregate(self, i: int) -> float:
+        """
+        Ensure boids fly towards the perceived centre of mass of ALL boids, i.e.
+        the centre of mass excluding itself. To calculate the steering angle,
+        the current position is subtracted from the perceived centre of mass
+        before the difference angle is computed.
+        """
+        if self.n > 1:
+            indexes = [ j for j in range(self.n) if j != i ]
+            c = centre_of_mass(self.X[indexes], self.l, self.bounds)
+            x = - relative_positions([ self.X[i]], c, self.l, self.bounds)[0]
+            a = bearing_to(self.A[i], x)
+            return a * self.a1
+        else:
+            return 0
 
 
     def __avoidance(self, i: int, indexes: List[int]) -> float:
@@ -121,11 +167,12 @@ class ReynoldsModel(FlockModel):
         (computation is based on the relative position only).
         """
         xs = - relative_positions(self.X[indexes], self.X[i], self.l, self.bounds)
-        xs = [ x / np.linalg.norm(x)**2 for x in xs ]
+        xs = [ x / metric_distance(x, self.X[i], self.l, self.bounds)**2
+               for x in xs ]
         x  = np.sum(xs, axis = 0)
         a  = bearing_to(self.A[i], x)
 
-        return a * self.a1
+        return a * self.a2
 
 
     def __alignment(self, i: int, indexes: List[int]) -> float:
@@ -140,24 +187,7 @@ class ReynoldsModel(FlockModel):
         a = average_angles(self.A[indexes])
         a = ang_mod(a - self.A[i])
 
-        return a * self.a2
-
-
-    def __aggregate(self, i: int) -> float:
-        """
-        Ensure boids fly towards the perceived centre of mass of ALL boids, i.e.
-        the centre of mass excluding itself. To calculate the steering angle,
-        the current position is subtracted from the perceived centre of mass
-        before the difference angle is computed.
-        """
-        if self.n > 1:
-            indexes = [ j for j in range(self.n) if j != i ]
-            c = centre_of_mass(self.X[indexes], self.l, self.bounds)
-            x = - relative_positions(self.X[i], c, self.l, self.bounds)[0]
-            a = bearing_to(self.A[i], x)
-            return a * self.a3
-        else:
-            return 0
+        return a * self.a3
 
 
     def __new_A(self, i: int) -> Tuple[np.ndarray, float, float]:
