@@ -3,4 +3,3 @@ jpype1
 matplotlib
 numpy
 scipy
-typing

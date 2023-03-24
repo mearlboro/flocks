@@ -83,9 +83,11 @@ def plot(
 
     or model data e.g.
 
-        {modelName}_{bounds}_{neighbourhood}(_{paramName}{paramValue})+(_{seed})?
+        {name}_{bounds}_{neighbourhood}(_{paramName}{paramValue})+(_{seed})?
 
-        python -m flock.animate plot out/txt/experiment1 [flags]
+    Run as
+
+        python -m util.animate out/txt/{experiment_or_model_dir} [flags]
 
     """
     flock = FlockFactory.load(path)

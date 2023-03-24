@@ -14,6 +14,7 @@ from typing import Any, Callable, List, Dict, Tuple
 
 
 class EnumParams(Enum):
+    ALL               = 0
     VICSEK_ORDER      = 1
     MEAN_ANGLE        = 2
     VAR_ANGLE         = 3
@@ -24,6 +25,7 @@ class EnumParams(Enum):
     MEAN_DIST_NEAREST = 8
 
     __titles__ = {
+        'ALL'               : '',
         'VICSEK_ORDER'      : 'Vicsek order parameter',
         'MEAN_ANGLE'        : 'Mean player direction',
         'VAR_ANGLE'         : 'Spread of player direction',
@@ -35,6 +37,7 @@ class EnumParams(Enum):
     }
 
     __labels__ = {
+        'ALL'               : '',
 		'VICSEK_ORDER'      : '$v_a(t)$',
 		'MEAN_ANGLE'        : '$\\tilde{\\theta}(t)$',
 		'VAR_ANGLE'         : '$\\sigma^2_{\\theta}(t)$',
@@ -361,13 +364,14 @@ def param(
 
 @click.command()
 @click.option('--path', required = True, help = 'Path to load model data from')
-@click.option('--redo', default = False, help = 'If data exists, recompute it, otherwise just redo plot')
 @click.option('--ordp', default = '', help = 'Order parameter to compute, all by default',
-              type = click.Choice(EnumParams.names() + [ '' ]))
+              type = click.Choice(EnumParams.names()))
+@click.option('--redo', default = False,
+              help = 'If data exists, recompute it, otherwise just redo plot')
 def main(path: str, ordp: str, redo: bool) -> None:
     """
     After a simulation or experiment is run, compute (and plot) the results by
-    showing trajectories, variances, order parameters, and histograms for the
+    showing trajectories, order parameters, susceptibilities, and histograms for the
     most 'interesting' states of that single run.
 
     It is assume that the simulation has a directory consistent with the mkdir
@@ -377,7 +381,7 @@ def main(path: str, ordp: str, redo: bool) -> None:
         {name}(_{info})+(_{paramname}{paramval})+_{seed}?-id
 
     Run from the root pyflocks/ folder, will save the order parameters as CSV
-    files in the original simulation folder and the plots in .
+    files in out/order and the plots in out/plt.
 
         python -m analysis.order [flags]
     """
@@ -389,26 +393,22 @@ def main(path: str, ordp: str, redo: bool) -> None:
 
     parampth = exp.mkdir('out/order/')
 
-    if redo:
-        ords = param(ordp, exp.traj['X'], exp.traj['A'], exp.l, 0, exp.bounds)
-        for o, vals in ords.members():
-            save_param(vals, str(o), parampth)
-    else:
-        if ordp:
-            if os.path.exists(f"{parampth}/{ordp}.txt"):
-                ords = { ordp: load_var(f"{parampth}/{ordp}.txt") }
-            else:
-                ords = param(ordp, exp.traj['X'], exp.traj['A'], exp.l, 0, exp.bounds)
-                save_param(ords[ordp], str(ordp), parampth)
+    if ordp != EnumParams.ALL:
+        if os.path.exists(f"{parampth}/{ordp}.txt") and not redo:
+            ords = { ordp: load_var(f"{parampth}/{ordp}.txt") }
         else:
-            for ordp in EnumParams.members():
-                if os.path.exists(f"{parampth}/{ordp}.txt"):
-                    ords[ordp] = load_var(f"{parampth}/{ordp}.txt")
-                else:
-                    ords |= param(ordp, exp.traj['X'], exp.traj['A'], exp.l, 0, exp.bounds)
-                    save_param(ords[ordp], str(ordp), parampth)
+            ords = param(ordp, exp.traj['X'], exp.traj['A'], exp.l, 0, exp.bounds)
+            save_param(ords[ordp], str(ordp), parampth)
+    else:
+        for ordp in EnumParams.members():
+            if os.path.exists(f"{parampth}/{ordp}.txt") and not redo:
+                ords[ordp] = load_var(f"{parampth}/{ordp}.txt")
+            else:
+                ords |= param(ordp, exp.traj['X'], exp.traj['A'], exp.l, 0, exp.bounds)
+                save_param(ords[ordp], str(ordp), parampth)
 
     plot.order_params(exp, ords)
+    # TODO: peak detection, plot those states
     plot.states([ 0, 50, 100, 150, 200, 300, 400, 499 ], exp)
 
 

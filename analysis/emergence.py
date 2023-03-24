@@ -163,9 +163,9 @@ def _MICalc(calcName: Callable[None, str]) -> Union[np.ndarray, float]:
 
 class MutualInfo:
     """
-    Class for calling various JIDT mutual information calculators for discrete
-    and continuous variables. Returns class functions that can be passed to
-    EmergenceCalc to compute mutual information.
+    Class for calling various JIDT mutual information calculators for
+    continuous variables. Returns class functions that can be passed
+    to EmergenceCalc to compute mutual information.
     """
     @classmethod
     def get(self, name: str) -> Callable[None, str]:
@@ -179,7 +179,6 @@ class MutualInfo:
             return self.ContinuousKernel
         else:
             raise ValueError(f"Estimator {name} not supported")
-
 
     @_MICalc
     def ContinuousGaussian() -> str:
@@ -527,7 +526,7 @@ def ensemble(
 
 
 @click.command()
-@click.option('--model',  help = 'Directory where system trajectories are stored')
+@click.option('--model', help = 'Directory where system trajectories are stored')
 @click.option('--est', type = click.Choice([ 'Gaussian', 'Kraskov1', 'Kraskov2', 'Kernel']),
               help = 'Mutual Info estimator to use', required = True)
 @click.option('--decomposition', is_flag = True, default = False,
@@ -552,14 +551,13 @@ def test(model: str, est: str,
         n = m.n
         M = order.param(params.CMASS, X, [], m.l, m.r, m.bounds)[params.CMASS]
     else:
-        # generate data for 1000 timesteps for 2 binary variables
+        # generate data for 1000 timesteps for 2 variables
         np.random.seed(0)
-        X = np.random.choice(a = [ False, True ], size = (1000, 2), p = [0.4, 0.6])
-        # for the data to be emergent for dt=1, compute XOR of X with delay 1
-        M = np.concatenate(([0], np.logical_xor(X[1:,0], X[1:,1])))
+        X = np.random.normal(0, 1, size = (1000, 2))
+        M = np.sum(X, axis = 1)
 
     est = MutualInfo.get(est)
-    dts = [ 1, 2, 3  ]
+    dts = [ 1, 2, 3 ]
     ems = system(X, M, dts, est, pointwise, correction)
     for dt, e in zip(dts, ems):
         print(f"{dt}: {e}")
