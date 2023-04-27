@@ -54,6 +54,8 @@ def __plot(
 @click.command()
 @click.option('--path', type = str, required = True,
               help = 'Directory with position data')
+@click.option('--out', type = str, required = True, default = 'out/img',
+              help = 'Directory to output images to')
 @click.option('-s', default = 0,
               help = 'Time increment to start plotting from')
 @click.option('-e', default = 1000000,
@@ -71,7 +73,7 @@ def __plot(
 @click.option('--sumvec', is_flag = True,
               help = 'Draw the sum vector of all velocities', default = False)
 def plot(
-        path: str, s: int, e: int,
+        path: str, out: str, s: int, e: int,
         style: str, simple: bool, color: str,
         traj: int, cmass: bool, sumvec: bool
     ) -> None:
@@ -96,7 +98,7 @@ def plot(
         flock.dt = 1/12
 
     # initialise folder to save images
-    imgpath = flock.mkdir('out/img')
+    imgpath = flock.mkdir(out)
 
     print(f"Animating {flock.title} in style {style}")
 

@@ -12,8 +12,8 @@ from util.plot        import plot_state, plot_trajectories, FlockStyle, savefig
 from typing import Any, Dict, List, Tuple
 
 
-def __run(sim: 'FlockModel', t: int) -> None:
-    txtpath = sim.mkdir('out/txt')
+def __run(sim: 'FlockModel', t: int, out: str) -> None:
+    txtpath = sim.mkdir(out)
     while sim.t < t:
         sim.save(txtpath)
         sim.update()
@@ -22,6 +22,7 @@ def __run(sim: 'FlockModel', t: int) -> None:
 
 
 @click.command()
+@click.option('--out', default = 'out/txt', help = 'Directory to save trajectories')
 @click.option('-s',  default = 0,    help='Seed to run simulation: will generate a random seed if not given.')
 @click.option('-t',  default = 100,  help='Time to run the simulation')
 @click.option('-n',  default = 10,   help='Number of particles')
@@ -36,7 +37,7 @@ def __run(sim: 'FlockModel', t: int) -> None:
 @click.option('--neighbours', required = True,
               type = click.Choice(['METRIC', 'TOPOLOGICAL']),
               help = 'Use neighbours in a radius r or nearest r neighbours')
-def vicsek(
+def vicsek(out: str,
         s: int, t: int, n: int, l: float,
         e: float, v: float, r: float,
         dt: float, bounds: str, neighbours: str
@@ -54,10 +55,11 @@ def vicsek(
         s = np.random.randint(10000)
     sim = VicsekModel(s, n, l, EnumBounds[bounds], EnumNeighbours[neighbours], dt,
         params = { 'eta': e, 'v' : v, 'r': r })
-    __run(sim, t)
+    __run(sim, t, out)
 
 
 @click.command()
+@click.option('--out', default = 'out/txt', help = 'Directory to save trajectories')
 @click.option('-s',  default = 0,     help='Seed to run simulation: will generate a random seed if not given.')
 @click.option('-t',  default = 10,     help='Time to run the simulation')
 @click.option('-n',  default = 10,    help='Number of particles')
@@ -73,7 +75,7 @@ def vicsek(
 @click.option('--neighbours', required = True,
               type = click.Choice(['METRIC', 'TOPOLOGICAL']),
               help = 'Use neighbours in a radius r or nearest r neighbours')
-def reynolds(
+def reynolds(out: str,
         s: int, t: int, n: int, l: float,
         a1: float, a2: float, a3: float, r: float,
         dt: float, bounds: str, neighbours: str
@@ -90,10 +92,11 @@ def reynolds(
         s = np.random.randint(10000)
     sim = ReynoldsModel(s, n, l, EnumBounds[bounds], EnumNeighbours[neighbours], dt,
                         params = { 'aggregate': a1, 'avoidance': a2, 'alignment': a3, 'r': r })
-    __run(sim, t)
+    __run(sim, t, out)
 
 
 @click.command()
+@click.option('--out', default = 'out/txt', help = 'Directory to save trajectories')
 @click.option('-s',  default = 0,    help='Seed to run simulation: will generate a random seed if not given.')
 @click.option('-t',  default = 10,   help='Time to run the simulation')
 @click.option('-n',  default = 10,   help='Number of particles')
@@ -110,7 +113,7 @@ def reynolds(
 @click.option('--neighbours', required = True,
               type = click.Choice(['METRIC', 'TOPOLOGICAL']),
               help = 'Use neighbours in a radius r or nearest r neighbours')
-def kuravicsek(
+def kuravicsek(out: str,
         s: int, t: int, n: int, l: int,
         e: float, v: float, r: float, k: float, f: float,
         dt: float, bounds: str, neighbours: str
@@ -127,7 +130,7 @@ def kuravicsek(
         s = np.random.randint(10000)
     sim = KuramotoVicsekModel(s, n, l, EnumBounds[bounds], EnumNeighbours[neighbours], dt,
             params = { 'eta': e, 'v': v, 'r': r, 'k': k, 'f': f })
-    __run(sim, t)
+    __run(sim, t, out)
 
 
 

@@ -2,7 +2,7 @@
 
 Implemented in Python and packaged with `pipenv`. Use
 
-```
+```sh
 $ pipenv install -r requirements.txt
 $ pipenv shell
 $ python -m flock.main {model_name} --help
@@ -33,7 +33,7 @@ Each simulation has a random seed saved in the directory name aside with the
 parameters, so it is fully reproducible.
 
 ## Examples
-```
+```sh
 $ python -m flock.main vicsek -e 0.4 -n 100 -l 5 --bounds PERIODIC --neighbours TOPOLOGICAL
 $ python -m util.animate out/txt/Vicsek_periodic_topological_eta0.4_v0.1_r1.0_rho4.0_{seed} \
      --style ARROW
@@ -42,7 +42,7 @@ $ ./gif.sh
 ```
 ![](/out/gif/Vicsek_periodic_topological_eta0.4_v0.1_r1.0_rho4.0.gif)
 
-```
+```sh
 $ python -m flock.main vicsek -e 1 -n 20 -l 2 --bounds PERIODIC --neighbours METRIC
 $ python -m util.animate out/txt/Vicsek_periodic_metric_eta1.0_v0.1_r1.0_rho5.0_{seed} \
      --style DOT --traj 20 --cmass
@@ -51,7 +51,7 @@ $ ./gif.sh
 ```
 ![](/out/gif/Vicsek_periodic_metric_eta1.0_v0.1_r1.0_rho5.0_traj.gif)
 
-```
+```sh
 $ python -m flock.main vicsek -e 0.7 -n 20 -l 2 --bounds REFLECTIVE --neighbours TOPOLOGICAL
 $ python -m util.animate out/txt/Vicsek_reflective_topological_eta0.7_v0.1_r3.0_rho5.0_{seed} \
      --style ARROW --sumvec
@@ -75,10 +75,10 @@ There is support for generating analysis plots in `analysis/plot.py`.
 `anaysis/order.py` contains simple implementations of instantaneous order parameters
 applicable to an array of system states. These can be from the same simulation
 or multiple realisations in an ensemble. Results are stored in `out/order`.
-Running
 
 ### Analysing one simulation
-```
+Running
+```sh
 $ python -m analysis.order --path out/txt/$simulation_folder --ordp $ordp_name
 ```
 will compute the order parameter specified for a given simulation.
@@ -88,7 +88,7 @@ The functions in `order.py` are used also in `ensemble.py` to automate computing
 order parameters and obtain ensemble averages while keeping track of control
 parameters. Run as
 
-```
+```sh
 $ python -m analysis.ensemble --path out/txt --name {model_name} --ordp {ordp_name} \
     -p {param1} -p {param2} [-p {param3}]
 ```
@@ -101,7 +101,7 @@ To produce the plot below, after 10 simulations were created with the same `n`,
 `rho`, and a range of `eta`, where the error is the standard error for the order
 parameter for the models:
 
-```
+```sh
 $ python -m analysis.ensemble --path out/txt/ --ordp VICSEK_ORDER \
     --model 'Vicsek_reflective_metric' -p rho -p eta
 ```
@@ -110,7 +110,7 @@ $ python -m analysis.ensemble --path out/txt/ --ordp VICSEK_ORDER \
 
 In case 3 aggregate parameters are passed, one plot will be made for each value of the first, plotting statistics against values of the second, for each value of the third e.g
 
-```
+```sh
 $ python -m analysis.ensemble --path out/txt/ --ordp VICSEK_ORDER \
     --model 'Vicsek_reflective_topological' -p rho -p eta -p r
 ```
@@ -130,13 +130,13 @@ theory to trajectories or angles and some order parameter.
 To run an example emergence computation on some testing Gaussian data and the sum of the two time
 series with the Gaussian estimator:
 
-```
+```sh
 $ python -m analysis.emergence --est Gaussian
 ```
 
 or on an existing model's trajectories with the centre of mass, say `Vicsek_periodic_metric_eta0.1_v0.1_r1.0_rho1.0`
 
-```
+```sh
 $ python -m analysis.emergence --model out/img/Vicsek_periodic_metric_eta0.1_v0.1_r1.0_rho1.0
     --est Kraskov1
 ```

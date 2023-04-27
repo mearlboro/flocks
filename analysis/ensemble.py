@@ -133,8 +133,9 @@ def ensemble_avg(
 
 
 @click.command()
-@click.option('--path', default='out/txt/', help='Path to load model data from')
-@click.option('--name', default='Vicsek',   help='Model type or experiment to load')
+@click.option('--path', default='out/txt/',   help='Path to load model data from')
+@click.option('--out', default='out/order/', help='Path to save model data to')
+@click.option('--name', default='Vicsek',     help='Model type or experiment to load')
 @click.option('--ordp', default='ALL', type=click.Choice(order.EnumParams.names()),
               help='Order parameter to study, all by default')
 @click.option('--conp', '-p', default=[ 'rho', 'eta' ], multiple = True,
@@ -144,7 +145,7 @@ def ensemble_avg(
 @click.option('--redo', is_flag=True, default=False,
               help = 'If data exists, recompute it, otherwise just redo plot')
 def main(
-        path: str, name: str, ordp: str, conp: List[str], redo: bool,
+        path: str, out: str, name: str, ordp: str, conp: List[str], redo: bool,
     ) -> None:
     """
     After a large number of simulations or experiment are run, we compute average
@@ -160,8 +161,6 @@ def main(
 
         python -m analysis.ensemble [flags]
     """
-
-    out = 'out/order'
 
     sims = __find_sims(path, name)
     if not len(sims.keys()):

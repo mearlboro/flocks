@@ -296,11 +296,7 @@ def param(
     m = dict()
     import time
 
-    param_name = ''
-    if param:
-        param_name = str(param).lower()
-
-    if param_name == '':
+    if param == EnumParams.ALL:
         print('Computing Vicsek order parameter')
         start = time.time()
         m[EnumParams.VICSEK_ORDER] = __vicsek_order(At, Vt, v)
@@ -321,7 +317,7 @@ def param(
 
         print('Computing mean number of neighbours')
         start = time.time()
-        m[EnumParams.MEAN_NEIGHBOURS]   = __mean_neighbours(Xt, r, bounds, L)
+        m[EnumParams.MEAN_NEIGHBOURS] = __mean_neighbours(Xt, r, bounds, L)
         print("Time elapsed: {}s".format(int(time.time() - start)))
 
         print('Computing mean distance to nearest neighbours')
@@ -329,30 +325,30 @@ def param(
         m[EnumParams.MEAN_DIST_NEAREST] = __mean_dist_nearest(Xt, bounds, L)
         print("Time elapsed: {}s".format(int(time.time() - start)))
 
-    elif 'vicsek' in param_name:
+    elif param == EnumParams.VICSEK_ORDER:
         print('Computing Vicsek order parameter')
-        m[EnumParams.VICSEK_ORDER] = __vicsek_order(At, Vt, v)
+        m[param] = __vicsek_order(At, Vt, v)
 
-    elif 'angle' in param_name:
+    elif param in [ EnumParams.MEAN_ANGLE, EnumParams.VAR_ANGLE ]:
         print('Computing mean & standard deviation of angle')
         m[EnumParams.MEAN_ANGLE], \
         m[EnumParams.VAR_ANGLE] = __mean_var_angle(At)
 
-    elif 'dist_cmass' in param_name:
+    elif param in [ EnumParams.MEAN_DIST_CMASS, EnumParams.VAR_DIST_CMASS]:
         print('Computing mean & standard deviation of distance from cmass')
         m[EnumParams.CMASS], \
         m[EnumParams.MEAN_DIST_CMASS], \
         m[EnumParams.VAR_DIST_CMASS] = __mean_var_dist_cmass(Xt, bounds, L)
 
-    elif 'cmass' in param_name:
+    elif param == EnumParams.CMASS:
         print('Computing cmass')
-        m[EnumParams.CMASS] = np.array([ centre_of_mass(X, L, bounds) for X in Xt ])
+        m[param] = np.array([ centre_of_mass(X, L, bounds) for X in Xt ])
 
-    elif 'mean_neighbours' in param_name:
+    elif param == EnumParams.MEAN_NEIGHBOURS:
         print('Computing mean number of neighbours')
-        m[EnumParams.MEAN_NEIGHBOURS]   = __mean_neighbours(Xt, r, bounds, L)
+        m[EnumParams.MEAN_NEIGHBOURS] = __mean_neighbours(Xt, r, bounds, L)
 
-    elif 'mean_dist_nearest' in param_name:
+    elif param == EnumParams.MEAN_DIST_NEAREST:
         print('Computing mean distance to nearest neighbours')
         m[EnumParams.MEAN_DIST_NEAREST] = __mean_dist_nearest(Xt, bounds, L)
 
@@ -364,11 +360,12 @@ def param(
 
 @click.command()
 @click.option('--path', required = True, help = 'Path to load model data from')
+@click.option('--out',  required = True, help = 'Path to save data to', default = 'out/order/')
 @click.option('--ordp', default = '', help = 'Order parameter to compute, all by default',
               type = click.Choice(EnumParams.names()))
 @click.option('--redo', default = False,
               help = 'If data exists, recompute it, otherwise just redo plot')
-def main(path: str, ordp: str, redo: bool) -> None:
+def main(path: str, out: str, ordp: str, redo: bool) -> None:
     """
     After a simulation or experiment is run, compute (and plot) the results by
     showing trajectories, order parameters, susceptibilities, and histograms for the
@@ -386,12 +383,15 @@ def main(path: str, ordp: str, redo: bool) -> None:
         python -m analysis.order [flags]
     """
     exp = FlockFactory.load(path)
+    parampth = exp.mkdir(out)
 
     ords = dict()
     if ordp:
         ordp = EnumParams[ordp]
+    else:
+        ordp = EnumParams.ALL
 
-    parampth = exp.mkdir('out/order/')
+    print(f"Computing order parameter(s) {ordp} for {path}, saving to {parampth}")
 
     if ordp != EnumParams.ALL:
         if os.path.exists(f"{parampth}/{ordp}.txt") and not redo:
@@ -400,7 +400,7 @@ def main(path: str, ordp: str, redo: bool) -> None:
             ords = param(ordp, exp.traj['X'], exp.traj['A'], exp.l, 0, exp.bounds)
             save_param(ords[ordp], str(ordp), parampth)
     else:
-        for ordp in EnumParams.members():
+        for ordp in EnumParams.members()[1:]:
             if os.path.exists(f"{parampth}/{ordp}.txt") and not redo:
                 ords[ordp] = load_var(f"{parampth}/{ordp}.txt")
             else:
