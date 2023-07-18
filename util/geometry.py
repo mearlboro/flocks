@@ -296,8 +296,8 @@ def neighbours(
 
     if i >= N:
         raise ValueError("Index i must be smaller than number of particles N!")
-    if r <= 0:
-        raise ValueError("Radius r must be strictly positive")
+    if r < 0:
+        raise ValueError("Radius r must be positive")
     if N == 1:
         return [ 0 ]
 
@@ -308,8 +308,11 @@ def neighbours(
             raise ValueError("L must be specified for periodic boundaries")
 
     if interactions == EnumNeighbours.METRIC:
-        neighbours = [ j for j, Xj in enumerate(X)
-                         if metric_distance(Xi, Xj, L, bounds) <= r ]
+        if r == 0:
+            neighbours = [ i ]
+        else:
+            neighbours = [ j for j, Xj in enumerate(X)
+                            if metric_distance(Xi, Xj, L, bounds) <= r ]
     elif interactions == EnumNeighbours.TOPOLOGICAL:
         if int(r) != r:
             raise ValueError("r must be an integer for topological neighbours")
