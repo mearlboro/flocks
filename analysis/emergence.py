@@ -229,22 +229,6 @@ class MutualInfo:
         return 'infodynamics.measures.continuous.kernel.MutualInfoCalculatorMultiVariateKernel'
 
 
-
-class Emergence(NamedTuple):
-    """
-    Tuple container for all results of emergence calculation, using named fields
-    to make addressing each quantity and the decomposition of Psi easier.
-    """
-    psi: float
-    psik1: float
-    syn: float
-    red: float
-    corr: float
-    gamma: float
-    delta: float
-
-
-
 class EmergenceCalc:
     """
     Computes quanities related to causal emergence using a given MutualInfo calculator
@@ -395,62 +379,118 @@ class EmergenceCalc:
         return delta
 
 
+class MutualInfos(NamedTuple):
+    """
+    Tuple container for all mutual info calculation, for each individual
+    in the same system where necessary, before averaging the MI. Use
+    named fields to make addressing each quantity easier.
+    """
+    vmi: float
+    xvmi: List[float]
+    vxmi: List[float]
+    xiximi: List[float]
+    xixjmi: List[float]
+
+class MutualInfoStats(NamedTuple):
+    """
+    Tuple container for all results of average mutual info calculation,
+    using named fields to make addressing each quantity easier.
+    """
+    vmi: float
+    xvmi: float
+    vxmi: float
+    xiximi: float
+    xixjmi: float
+
+class EmergenceStats(NamedTuple):
+    """
+    Tuple container for all results of emergence calculation, using
+    named fields to make addressing each quantity easier.
+    """
+    psik0: float
+    psik1: float
+    gamma: float
+    delta: float
+
 
 
 def system(
         X: np.ndarray, V: np.ndarray, dts: List[int],
-        mutualInfo: Callable, pointwise: bool = False, correction: int = 1
-    ) -> List['Emergence']:
+        mutualInfo: Callable, pointwise: bool = False, path = ''
+    ) -> List[Tuple['EmergenceStats', 'MutualInfos']]:
     """
     Initialise emergence calculator between time series X and V and return
-    corrected, decomposed Psi, Gamma and Delta for time delays in dt.
+    Psi, Gamma and Delta foreach delay in dts, as well as each relevant mutual
+    information term in the causal theory of emergence.
 
-    Assume stationarity, i.e. the underlying distribution for the value of
-    variable i is the same regardless of time t. If the system is not stationary,
-    use `ensemble` with `stationary = False` on multiple realisations of the
-    system instead.
+    This function can be used regardless of the system being stationary or non-
+    stationary, the X and V arrays should be constructed accordingly before
+    being passed to `system`. See `ensemble` function for details.
 
     Params
     ------
     Xs
-        array of micro variables of shape (r, t, n, d1) for r realisations of a
-        system of n d1-dimensional variables over t timesteps
+        array of micro variables of shape (t, n, d1) for the realisation
+        of a system of n d1-dimensional variables over t timesteps, or
+        for t realisations of an ensemble of n d1-dimensional variables
+        at the exact same timestep
     V
         array of emergence features of shape (r, t, d2) for each
     dts
-        an array of all the numbers of time steps in the future to predict
+        list of all numbers of time steps in the future to predict
     mutualInfo
         mutual information function to use from MutualInfo class
     pointwise
         whether to use pointwise (p log p) or Shannon (sum p log p) MI
-    correction
-        order of the lattice correction when computing Psi
+    path
+        if set, save the data to path
 
     Returns
     ------
-    decomposed Psi, Gamma, Delta as scalars in a (named) tuple foreach dt
+    list of tuples of EmergenceStats (4 floats) and MutualInfos (5 floats)
+    we don't average MutualInfos into MutualInfoStats yet, as it may still be
+    needed
     """
-    emgs = []
-    for dt in dts:
-        calc = EmergenceCalc(X, V, mutualInfo, pointwise = pointwise, dt = dt)
-        psi = calc.psi(decomposition = True, correction = correction)
-        psi = ( psi[0] - psi[1], psi[0] - psi[1] + psi[2], *psi )
-        emg = Emergence(*psi, calc.gamma(), calc.delta())
-        emgs.append(emg)
+    results = []
 
-    return emgs
+    for dt in dts:
+        calc = EmergenceCalc(X, V, mutualInfo, pointwise, dt = dt)
+
+        e = EmergenceStats(
+            psik0 = calc.psi(decomposition = False, correction = 0),
+            psik1 = calc.psi(decomposition = False, correction = 1),
+            gamma = calc.gamma(),
+            delta = calc.delta(),
+        )
+
+        mi = MutualInfos(
+            vmi    =   calc.vmiCalc,
+            xvmi   = [ calc.xvmiCalcs[i]     for i in range(calc.n) ],
+            vxmi   = [ calc.vxmiCalcs[i]     for i in range(calc.n) ],
+            xiximi = [ calc.xmiCalcs[(i, i)] for i in range(calc.n) ],
+            xixjmi = [ np.mean([ calc.xmiCalcs[(i, j)]
+                                            for j in range(calc.n) if i != j ])
+                                            for i in range(calc.n) ],
+        )
+        results.append((e, mi))
+
+    if path:
+        np.save(f"{path}/em_stats_mis", results)
+
+    return results
 
 
 def ensemble(
         stationary: bool,
         Xs: np.ndarray, Vs: np.ndarray, dts: int,
-        mutualInfo: Callable, correction: int = 1,
+        mutualInfo: Callable, pointwise: bool = False,
         path: str = ''
-    ) -> List[Tuple['Emergence', 'Emergence']]:
+    ) -> Tuple['EmergenceStats', 'MutualInfoStats']:
     """
     Compute emergence between time series of components X and a macroscopic
     feature V for a whole ensemble of realisations of the same system, for
-    the time delays given in dts.
+    the time delays given in dts, and return an aveage value for each quantity
+    for each dt, as well as the standard deviation across quantities for the Xi.
 
     When assuming stationarity, all Xi, V have the same probability distribution
     regardless of t, so the MI is applied between Xi and V at different times t
@@ -459,10 +499,15 @@ def ensemble(
     When the system is non-stationary, we cannot directly apply MI between Xi and
     V at arbitrary times (as the distribution of each Xi and V may be dependent
     on t). Instead, we take all Xi from the ensemble at the same time t, and V
-    at the time t'.
+    at the time t'. A large number of realisations is needed for a robust
+    computation.
 
     Params
     ------
+    stationary
+        if set, assume system is stationary, intialise mutual info calc on the
+        time series for each realisation. Otherwise, construct time series from
+        realisations at the same timestep across the whole ensemble
     Xs
         numpy array of shape (r, t, n, d1) for ensembles of r realisations of
         a system of n d1-dimensional variables over t timesteps
@@ -477,14 +522,9 @@ def ensemble(
         order of the lattice correction when computing Psi
     path
         if set, dump the results of for the ensemble to path
-
-    Returns
-    ------
-    a list of mean and standard deviation values for each emergence quantity as
-    pairs of Emergence named tuples, with statistics for each dt
     """
-    estats = []
-    stats = lambda xs: (np.mean(xs, axis = 0), np.std(xs, axis = 0))
+    emstats, mistats = [], []
+    mean_std = lambda xs: (np.mean(xs, axis = 0), np.std(xs, axis = 0))
 
     R, T, N, D1 = Xs.shape[:4]
     if len(Vs.shape) > 2:
@@ -492,37 +532,61 @@ def ensemble(
     else:
        D2 = 1
 
+    maxdt = max(dts)
+    # most time we are interested in a given dt, or to observe evolution as dt
+    # increases, therefore we may average over quantities for multiple systems
+    # computed with the same dt
     for dt in dts:
-        print(f"Computing emergence quantities for a time delay of {dt}")
-        emgs = []
-
+        ems, mis = [], []
         if stationary:
             # if we can assume stationarity, then we simply compute MI between
             # the time series with time delay dt
             for X, V in zip(Xs, Vs):
-                emgs.append(system(X, V, [ dt ], mutualInfo)[0])
+                e, mi = system(X, V, [ dt ], mutualInfo, pointwise)[0]
+                ems.append(e)
+                mis.append(mi)
         else:
             # for non-stationary systems, we need to always compute MI between
             # all Xi across all R realisations at the same time t and t+dt, so
-            # concatenate them and pass to the calculator with time delay T
-            for t in range(1, T - dt - 1):
-                print(f"Computing emergence from t={t} to t'={t*dt}")
+            # concatenate them and pass to the calculator with time delay R
+            # we use the largest dt so we have the same number of calculations
+            # to average over for all dts
+            for t in range(1, T - maxdt - 1):
+                print(f"Computing emergence from t={t} to t'={t+dt}")
                 X  = np.concatenate((
                         Xs[:, t, :].reshape(R, N, D1),
                         Xs[:, t + dt, :].reshape(R, N, D1)))
                 V  = np.concatenate((
                         Vs[:, t].reshape(R, D2),
                         Vs[:, t + dt].reshape(R, D2)))
-                emgs.append(system(X, V, [ R ], mutualInfo)[0])
+                e, mi = system(X, V, [ R ], mutualInfo, pointwise)[0]
+                ems.append(e)
+                mis.append(mi)
 
-        mean, std = stats(np.array(emgs))
-        estats.append((Emergence(*mean), Emergence(*std)))
+        # since every emergence quantity is a scalar value, the mean and std are
+        # accross ensembles if stationary, or over t if nonstationary
+        emstats.append(mean_std(np.array(ems))) # has shape (2, 4)
+        # for the individual MI over the mean and std should be computed over i
+        # first get means over R or t-dt, the mean and std of those are over i
+        if stationary:
+            rt = R
+        else:
+            rt = T - maxdt - 2
+        mis_stats = np.array([
+            (        np.mean([mis[t].vmi    for t in range(0, rt)]), 0 ),
+            mean_std(np.mean([mis[t].xvmi   for t in range(0, rt)], axis = 0)),
+            mean_std(np.mean([mis[t].vxmi   for t in range(0, rt)], axis = 0)),
+            mean_std(np.mean([mis[t].xiximi for t in range(0, rt)], axis = 0)),
+            mean_std(np.mean([mis[t].xixjmi for t in range(0, rt)], axis = 0))
+            ]).T
+        mistats.append(mis_stats) # has shape (2, 5)
 
     if path:
-        np.save(f"{path}/ensemble_stats", estats)
+        stat = '_stat' if stationary else '_nonstat'
+        np.save(f"{path}/ensemble_emstats{stat}_{min(dts)}-{max(dts)}", emstats)
+        np.save(f"{path}/ensemble_mistats{stat}_{min(dts)}-{max(dts)}", mistats)
 
-    return estats
-
+    return emstats, mistats
 
 
 @click.command()
@@ -531,36 +595,35 @@ def ensemble(
               help = 'Mutual Info estimator to use', required = True)
 @click.option('--decomposition', is_flag = True, default = False,
               help = 'If true, decompose Psi into the synergy, redundancy, and correction.')
-@click.option('--correction', type = int, default = 1,
-              help = 'Use nth-order lattice correction for emergence calculation.')
 @click.option('--pointwise',  is_flag = True, default = False,
               help = 'If true, use pointwise mutual information for emergence calculation.')
 @click.option('--threshold',
               help = 'Number of timesteps to wait before calculation, at least as many as the dimenstions of the system')
 def test(model: str, est: str,
-         decomposition: bool, correction: bool, pointwise: bool, threshold: int
+         decomposition: bool, pointwise: bool, threshold: int
     ) -> None:
     """
     Test the emergence calculator on the trajectories specified in `filename`, or
     on a random data stream.
     """
-
+    pth = ''
     if model:
         m = FlockFactory.load(model)
         X = m.traj['X']
         n = m.n
         M = order.param(params.CMASS, X, [], m.l, m.r, m.bounds)[params.CMASS]
+        pth = m.mkdir('out/order')
     else:
         # generate data for 1000 timesteps for 2 variables
         np.random.seed(0)
-        X = np.random.normal(0, 1, size = (1000, 2))
+        X = np.random.normal(0, 1, size = (1000, 5))
         M = np.sum(X, axis = 1)
 
     est = MutualInfo.get(est)
-    dts = [ 1, 2, 3 ]
-    ems = system(X, M, dts, est, pointwise, correction)
-    for dt, e in zip(dts, ems):
-        print(f"{dt}: {e}")
+    dts = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
+    results = system(X, M, dts, est, pointwise, pth)
+    for dt, e in zip(dts, results):
+        print(f"{dt}: {results[0]} {results[1]}")
 
 
 if __name__ == "__main__":
