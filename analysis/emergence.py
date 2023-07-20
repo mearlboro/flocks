@@ -573,7 +573,9 @@ def ensemble(
         else:
             rt = T - maxdt - 2
         mis_stats = np.array([
-            (        np.mean([mis[t].vmi    for t in range(0, rt)]), 0 ),
+           (np.mean([mis[t].vmi    for t in range(0, rt)]),
+            np.std( [mis[t].vmi    for t in range(0, rt)])
+           ),
             mean_std(np.mean([mis[t].xvmi   for t in range(0, rt)], axis = 0)),
             mean_std(np.mean([mis[t].vxmi   for t in range(0, rt)], axis = 0)),
             mean_std(np.mean([mis[t].xiximi for t in range(0, rt)], axis = 0)),
