@@ -61,6 +61,7 @@ class Flock:
         # initialise parameters
         rho = round(float(n) / l ** 2, 4) # density
         params['rho'] = rho
+        params['n']   = n
 
         self.params = params
 
