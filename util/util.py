@@ -1,9 +1,40 @@
 #!/usr/bin/python
 import math
 import numpy as np
+import re
 import os
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
+
+def proc_params(path: str) -> Tuple[List[str], int, Dict[str, float]]:
+    """
+    Given a model string, extract the parameters.
+
+    For example from
+        out/txt/Vicsek_periodic_metric_eta0.5_v0.1_r1_rho0.1_n10_999
+
+    Get the following params dict
+
+        { 'n': 10, 'e': 0.5, 'v': 0.1, 'r': 1, 'l': 10 }
+    """
+    # parse directory name to extract model parameters, exclude seed and ID
+    d  = os.path.basename(path).split('-')[0]
+    ps = d.split('_')
+    seed = ps[-1]
+
+    # some simulations may not have seed information
+    try:
+        seed = int(seed)
+        ps = ps[:-1]
+    except:
+        seed = -1
+
+    ps_dict = { re.findall('[a-z]+', p)[0]: float(re.findall('[0-9.]+', p)[0])
+                for p in ps[3:]
+                if len(re.findall('[0-9.]+', p)) }
+
+    return ps, seed, ps_dict
+
 
 def save_var(X: np.ndarray, fn: str, path: str) -> None:
     """

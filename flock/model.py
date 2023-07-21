@@ -5,7 +5,7 @@ import re
 import os
 
 from util.geometry import EnumBounds, EnumNeighbours
-from util.util     import load_var
+from util.util     import load_var, proc_params
 
 from typing import Any, Dict, List, Tuple
 
@@ -258,10 +258,10 @@ class FlockModel(Flock):
 
             for example, if the root output path is '/out/txt', a Vicsek model
             with 10 particles in a 1x1 space, with periodic boundaries, metric
-            neighbours and params rho = 0.1, eta = 0.5, r = 1 and seed 999 will
-            use the path
+            neighbours and params rho = 0.1, eta = 0.5, r = 1, v = 0.1, rho = 0.1
+            and seed 999 will use the path
 
-                out/txt/Vicsek_periodic_metric_rho0.1_eta0.5_r1_999
+                out/txt/Vicsek_periodic_metric_eta0.5_v0.1_r1_rho0.1_n10_999
 
         Returns
         ------
@@ -275,21 +275,8 @@ class FlockModel(Flock):
         if path[-1] == '/':
             path = path[:-1]
 
-        # parse directory name to extract model parameters, exclude seed and ID
-        d  = os.path.basename(path).split('-')[0]
-        ps = d.split('_')
-        seed = ps[-1]
-
-        # some simulations may not have seed information
-        try:
-            seed = int(seed)
-            ps = ps[:-1]
-        except:
-            seed = -1
-
-        ps_dict = { re.findall('[a-z]+', p)[0]: float(re.findall('[0-9.]+', p)[0])
-                    for p in ps[3:]
-                    if len(re.findall('[0-9.]+', p)) }
+        # parse directory name to extract model parameters and seed
+        ps, seed, ps_dict = proc_params(path)
 
         print(f"Found {ps[0]} model with params {ps_dict} and seed {seed}")
         # loads all .txt files in the folder
