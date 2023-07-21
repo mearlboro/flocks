@@ -599,10 +599,10 @@ def ensemble(
               help = 'If true, decompose Psi into the synergy, redundancy, and correction.')
 @click.option('--pointwise',  is_flag = True, default = False,
               help = 'If true, use pointwise mutual information for emergence calculation.')
-@click.option('--threshold',
-              help = 'Number of timesteps to wait before calculation, at least as many as the dimenstions of the system')
+@click.option('--skip', default = 0,
+              help = 'Number of timesteps to wait before calculation e.g. for removing transients')
 def test(model: str, est: str,
-         decomposition: bool, pointwise: bool, threshold: int
+         decomposition: bool, pointwise: bool, skip: int
     ) -> None:
     """
     Test the emergence calculator on the trajectories specified in `filename`, or
@@ -621,9 +621,10 @@ def test(model: str, est: str,
         X = np.random.normal(0, 1, size = (1000, 5))
         M = np.sum(X, axis = 1)
 
+    skip = int(skip)
     est = MutualInfo.get(est)
     dts = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
-    results = system(X, M, dts, est, pointwise, pth)
+    results = system(X[skip:], M[skip:], dts, est, pointwise, pth)
     for dt, e in zip(dts, results):
         print(f"{dt}: {results[0]} {results[1]}")
 
