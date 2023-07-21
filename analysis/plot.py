@@ -109,12 +109,16 @@ def aggregate_2param(
         plt.errorbar(xval, yval, yerr = np.sqrt(yerr), label = ordp.label(),
             linestyle = '--', marker = next(markers), c = np.random.rand(3,))
 
+        if 1 < len(conp[0]) < 4:
+            tlab = f"$\\{conp[0]}$"
+        else:
+            tlab = f"${conp[0]}$"
         if 1 < len(conp[1]) < 4:
             xlab = f"$\\{conp[1]}$"
         else:
             xlab = f"${conp[1]}$"
         plt.title(ordp.title() + f" vs {xlab}", fontsize = 12)
-        plt.suptitle(title + f" ($\\{conp[0]}$ = {p0})", fontsize = 13)
+        plt.suptitle(title + f" ({tlab} = {p0})", fontsize = 13)
         plt.ylabel(ordp.label(), fontsize = 12)
         plt.xlabel(xlab, fontsize = 12)
 
@@ -135,6 +139,7 @@ def aggregate_3param(
     if len(conp) != 3:
         raise ValueError(f'Can only plot aggregate plot with 3 params, but {conp} given')
         exit(0)
+    import pdb; pdb.set_trace()
 
     plt.rcParams['figure.figsize'] = [7,5]
     for p0 in stats.keys():
@@ -142,8 +147,8 @@ def aggregate_3param(
 
         groups = list(set([ p2 for p1 in xval for p2 in stats[p0][p1].keys() ]))
         for p2 in groups:
-            yval = [ np.mean(stats[p0][p1][p2][conp]) for p1 in xval
-                                                        if p2 in stats[p0][p1].keys()]
+            yval = [ np.mean(stats[p0][p1][p2][ordp]) for p1 in xval
+                                                      if p2 in stats[p0][p1].keys()]
 
             plt.plot(xval, yval, label = f'{conp[2]} = {p2}',
                 linestyle = '--', marker = next(markers), c = np.random.rand(3,))

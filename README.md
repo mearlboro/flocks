@@ -103,7 +103,7 @@ parameter for the models:
 
 ```sh
 $ python -m analysis.ensemble --path out/txt/ --ordp VICSEK_ORDER \
-    --model 'Vicsek_reflective_metric' -p rho -p eta
+    --name 'Vicsek_reflective_metric' -p rho -p eta
 ```
 
 ![](/out/plt/Vicsek_reflective_metric_rho4.0_eta_vs_vicsek_order.png)
@@ -112,7 +112,7 @@ In case 3 aggregate parameters are passed, one plot will be made for each value 
 
 ```sh
 $ python -m analysis.ensemble --path out/txt/ --ordp VICSEK_ORDER \
-    --model 'Vicsek_reflective_topological' -p rho -p eta -p r
+    --name 'Vicsek_reflective_topological' -p rho -p eta -p r
 ```
 
 ![](/out/plt/Vicsek_reflective_topological_rho2.5_eta_r_vs_avg_abs_vel.png)

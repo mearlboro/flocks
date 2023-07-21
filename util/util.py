@@ -66,7 +66,7 @@ def save_param(X: np.ndarray, fn: str, path: str) -> None:
     return
 
 
-def load_var(filename: str) -> np.ndarray:
+def load_var(fn: str) -> np.ndarray:
     """
     Load time series from file created with `save_var` and return as numpy array.
 
@@ -85,8 +85,9 @@ def load_var(filename: str) -> np.ndarray:
     The resulting array will have shape (T, N), with variable i at time t stored
     in X[t, i].
     """
-    with open(filename, 'r') as f:
+    with open(fn, 'r') as f:
         X = [[x for x in line.split('\t') if x != '\n'] for line in f]
 
     return np.array(X).astype(float)
+
 

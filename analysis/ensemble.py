@@ -9,6 +9,7 @@ import sys
 from analysis import order, plot
 from flock.model import Flock
 from flock.factory import FlockFactory
+from util.util import load_var, save_param
 
 from typing import Any, Dict, List, Tuple
 
@@ -36,7 +37,7 @@ def ensemble_avg(
         models:         Dict[str, Any],
         control_params: List[str],
         order_param:    str,
-        tt:             int,
+        skip:           int,
         path:           str = 'out/order'
     ) -> Dict[float, Dict[float, Any]]:
     """
@@ -45,8 +46,9 @@ def ensemble_avg(
     of one system and further grouping and averaging over systems with the same
     parameters into ensembles.
 
-    We assume that for a given system it takes a number tt of timesteps to reach
-    a steady state. This analysis will not be relevant if tt is small.
+    We assume that for a given system it takes a number skip of timesteps to reach
+    a steady state, so before averaging the instantaneous order parameter at each
+    time step we remove the first skip.
 
     Params
     ------
@@ -57,9 +59,11 @@ def ensemble_avg(
         the param hash of the Flock object
     order_param
         order parameter names to compute and aggregate for the models
-    tt
+    skip
         number of timesteps to discard at the beginning of the simulation before
-        computing the order parameters
+        computing the mean of order parameters
+    path
+        where to save order parameter computations.
 
     Returns
     ------
@@ -114,16 +118,20 @@ def ensemble_avg(
                 print(f"Error with experiment {exp}: incomplete data")
                 continue
 
-            Xt = m.traj['X'][tt:]
-            At = m.traj['A'][tt:]
+            Xt = m.traj['X']
+            At = m.traj['A']
 
-            Vt = order.param(order_param, Xt, At, m.l, m.params['r'], m.bounds)[order_param]
-            np.save(f'{path}/{m.string}_{str(order_param)}', Vt, allow_pickle=True)
+            parampth = m.mkdir(path)
+            if os.path.exists(f"{parampth}/{str(order_param)}.txt"):
+                Vt = load_var(f"{parampth}/{str(order_param)}.txt")
+            else:
+                Vt = order.param(order_param, Xt, At, m.l, m.params['r'], m.bounds)[order_param]
+                save_param(Vt, str(order_param), parampth)
 
             if order_param in tmp.keys():
-                tmp[order_param].append(np.mean(Vt))
+                tmp[order_param].append(np.mean(Vt[skip:]))
             else:
-                tmp[order_param] = [ np.mean(Vt) ]
+                tmp[order_param] = [ np.mean(Vt[skip:]) ]
 
         # average everything accross all experiments
         tmp[f'{order_param}_mean'] = np.mean(tmp[order_param])
@@ -134,7 +142,7 @@ def ensemble_avg(
 
 @click.command()
 @click.option('--path', default='out/txt/',   help='Path to load model data from')
-@click.option('--out', default='out/order/', help='Path to save model data to')
+@click.option('--out', default='out/order/', help='Path to save order param data to')
 @click.option('--name', default='Vicsek',     help='Model type or experiment to load')
 @click.option('--ordp', default='ALL', type=click.Choice(order.EnumParams.names()),
               help='Order parameter to study, all by default')
@@ -142,7 +150,7 @@ def ensemble_avg(
               help='Control parameters by which to aggregate simulations')
 @click.option('--skip', default = 500,
               help='Number of transient states to skip to compute only on steady states')
-@click.option('--redo', is_flag=True, default=False,
+@click.option('--redo', is_flag=True,
               help = 'If data exists, recompute it, otherwise just redo plot')
 def main(
         path: str, out: str, name: str, ordp: str, conp: List[str], skip: int, redo: bool,
@@ -162,16 +170,20 @@ def main(
         python -m analysis.ensemble [flags]
     """
 
+    if ordp == "ALL":
+        ordps = order.EnumParams.members()[1:]
+    else:
+        ordps = [ order.EnumParams[ordp] ]
+    conp = list(conp)
+
+    print(f"Will calculate order parameters {ordps} for the given trajectories and control parameters {conp}")
+
+    conp_str = '_'.join(conp)
+
     sims = __find_sims(path, name)
     if not len(sims.keys()):
         print(f'No directories of type {name} found in {path}')
         sys.exit(0)
-
-    if ordp == 'ALL':
-        ordps = order.EnumParams.members()
-    else:
-        ordps = [ order.EnumParams[ordp] ]
-    conp_str = '_'.join(conp)
 
     pltitle = sims[list(sims.keys())[0]].title
     plt.rcParams['figure.figsize'] = 10, 7
@@ -186,9 +198,9 @@ def main(
 
         print(f"Saving figure to {out}")
         if len(conp) == 2:
-            plot.aggregate_2param(name, stats, conp, ordp, pltitle, out)
+            plot.aggregate_2param(name, stats, conp, ordp, pltitle)
         if len(conp) == 3:
-            plot.aggregate_3param(name, stats, conp, ordp, pltitle, out)
+            plot.aggregate_3param(name, stats, conp, ordp, pltitle)
 
 
 if __name__ == "__main__":
