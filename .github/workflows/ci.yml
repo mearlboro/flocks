@@ -1,0 +1,35 @@
+name: Build and publish pypi package
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11.1
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      - name: Run Unit Tests
+        run: |
+          pytest
+      - name: Build
+        if: github.ref == 'refs/heads/main'
+        run: |
+          pip install build
+          python3 -m build
+      - name: Publish
+        if: github.ref == 'refs/heads/main'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # TODO (mis): add this secret to your repository
+          password: ${{ secrets.PYPI_TOKEN }}
