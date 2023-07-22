@@ -1,16 +1,9 @@
 #!/usr/bin/python3
-import click
-from enum import Enum
-import numpy as np
-import os
 
-from analysis import plot
-from flock.model import FlockModel
-from flock.factory import *
-from util.geometry import *
-from util.util import *
+from pyflocks.util.geometry import *
+from pyflocks.util.util import *
 
-from typing import Any, Callable, List, Dict, Tuple
+from typing import Any, List, Dict, Tuple
 
 
 class EnumParams(Enum):
@@ -356,62 +349,3 @@ def param(
         raise ValueError(f"Param {param_name} not supported")
 
     return m
-
-
-@click.command()
-@click.option('--path', required = True, help = 'Path to load model data from')
-@click.option('--out',  required = True, help = 'Path to save data to', default = 'out/order/')
-@click.option('--ordp', default = '', help = 'Order parameter to compute, all by default',
-              type = click.Choice(EnumParams.names()))
-@click.option('--redo', default = False,
-              help = 'If data exists, recompute it, otherwise just redo plot')
-def main(path: str, out: str, ordp: str, redo: bool) -> None:
-    """
-    After a simulation or experiment is run, compute (and plot) the results by
-    showing trajectories, order parameters, susceptibilities, and histograms for the
-    most 'interesting' states of that single run.
-
-    It is assume that the simulation has a directory consistent with the mkdir
-    method of the Flock abstract class, i.e. the dirname begins with the model
-    name, followed by underscore, and other model details
-
-        {name}(_{info})+(_{paramname}{paramval})+_{seed}?-id
-
-    Run from the root pyflocks/ folder, will save the order parameters as CSV
-    files in out/order and the plots in out/plt.
-
-        python -m analysis.order [flags]
-    """
-    exp = FlockFactory.load(path)
-    parampth = exp.mkdir(out)
-
-    ords = dict()
-    if ordp:
-        ordp = EnumParams[ordp]
-    else:
-        ordp = EnumParams.ALL
-
-    print(f"Computing order parameter(s) {ordp} for {path}, saving to {parampth}")
-
-    if ordp != EnumParams.ALL:
-        if os.path.exists(f"{parampth}/{ordp}.txt") and not redo:
-            ords = { ordp: load_var(f"{parampth}/{ordp}.txt") }
-        else:
-            ords = param(ordp, exp.traj['X'], exp.traj['A'], exp.l, 0, exp.bounds)
-            save_param(ords[ordp], str(ordp), parampth)
-    else:
-        for ordp in EnumParams.members()[1:]:
-            if os.path.exists(f"{parampth}/{ordp}.txt") and not redo:
-                ords[ordp] = load_var(f"{parampth}/{ordp}.txt")
-            else:
-                ords |= param(ordp, exp.traj['X'], exp.traj['A'], exp.l, 0, exp.bounds)
-                save_param(ords[ordp], str(ordp), parampth)
-
-    plot.order_params(exp, ords)
-    # TODO: peak detection, plot those states
-    plot.states([ 0, 50, 100, 150, 200, 300, 400, 499 ], exp)
-
-
-
-if __name__ == "__main__":
-    main()

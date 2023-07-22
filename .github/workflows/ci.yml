@@ -1,0 +1,49 @@
+name: Build and publish pypi package
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11.1
+      - name: Install poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: 1.2.2
+      - name: Configure poetry
+        # TODO (mis): add this secret to your repository
+        run: |
+          poetry config virtualenvs.create false
+          poetry config pypi-token.pypi ${{ SECRETS.PYPI_TOKEN }}
+      #----------------------------------------------
+      #       load cached venv if cache exists
+      #----------------------------------------------
+      - name: Load cached venv
+        id: cached-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
+      #----------------------------------------------
+      # install dependencies if cache does not exist
+      #----------------------------------------------
+      - name: Install dependencies
+        if: steps.cached-dependencies.outputs.cache-hit != 'true'
+        run: |
+          poetry install
+      - name: Run Tests
+        run: |
+          pytest
+      - name: Build and publish
+        if: github.ref == 'refs/heads/main'
+        run: |
+          poetry publish --build

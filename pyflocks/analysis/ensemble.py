@@ -1,17 +1,11 @@
-import click
-import itertools
-import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import ImageGrid
-import numpy as np
 import os
-import sys
+from typing import Any, Dict, List
 
-from analysis import order, plot
-from flock.model import Flock
-from flock.factory import FlockFactory
-from util.util import load_var, save_param
-
-from typing import Any, Dict, List, Tuple
+import numpy as np
+from pyflocks.analysis import order
+from pyflocks.models.factory import FlockFactory
+from pyflocks.models.model import Flock
+from pyflocks.util.util import load_var, save_param
 
 
 def __find_sims(path: str, name: str) -> Dict[str, 'Flock']:
@@ -24,22 +18,21 @@ def __find_sims(path: str, name: str) -> Dict[str, 'Flock']:
     """
     d = os.path.basename(path)
     if name in d:
-        return { d: FlockFactory.load(path) }
+        return {d: FlockFactory.load(path)}
 
     dirs = [d for d in os.listdir(path)
-              if os.path.isdir(os.path.join(path, d)) and d.lower().startswith(name.lower()) ]
-    models = { d: FlockFactory.load(os.path.join(path, d)) for d in dirs }
+            if os.path.isdir(os.path.join(path, d)) and d.lower().startswith(name.lower())]
+    models = {d: FlockFactory.load(os.path.join(path, d)) for d in dirs}
     return models
 
 
-
 def ensemble_avg(
-        models:         Dict[str, Any],
+        models: Dict[str, Any],
         control_params: List[str],
-        order_param:    str,
-        skip:           int,
-        path:           str = 'out/order'
-    ) -> Dict[float, Dict[float, Any]]:
+        order_param: str,
+        skip: int,
+        path: str = 'out/order'
+) -> Dict[float, Dict[float, Any]]:
     """
     For all models loaded in the given dict, compute order params, and aggregate
     them by the control parameters by averaging all values for all steady states
@@ -84,7 +77,7 @@ def ensemble_avg(
     # extract the model hyper parameter names (e.g. eta, rho in Vicsek) and
     # check if the params passed to the function are correct
     model_params = set([p for m in models.values()
-                          for p in m.params.keys() ])
+                        for p in m.params.keys()])
     for p in control_params:
         if p not in model_params:
             raise ValueError(
@@ -92,15 +85,15 @@ def ensemble_avg(
             exit(0)
 
     # group experiments with the same params into batches
-    batch_names = set([ '_'.join(m.split('_')[:-1]) for m in models.keys() ])
+    batch_names = set(['_'.join(m.split('_')[:-1]) for m in models.keys()])
     print(batch_names)
 
     stats = dict()
     for batch in batch_names:
-        exp_in_batch = sorted([ m for m in models.keys() if batch in m ])
+        exp_in_batch = sorted([m for m in models.keys() if batch in m])
         count = len(exp_in_batch)
         print(f"Processing {count} experiments for {batch} with params " +
-            " ".join([ f"{p}: {models[exp_in_batch[0]].params[p]}" for p in control_params ]) )
+              " ".join([f"{p}: {models[exp_in_batch[0]].params[p]}" for p in control_params]))
 
         # build a hash of hashes grouping model parameters by the param_list
         tmp = stats
@@ -131,77 +124,10 @@ def ensemble_avg(
             if order_param in tmp.keys():
                 tmp[order_param].append(np.mean(Vt[skip:]))
             else:
-                tmp[order_param] = [ np.mean(Vt[skip:]) ]
+                tmp[order_param] = [np.mean(Vt[skip:])]
 
         # average everything accross all experiments
         tmp[f'{order_param}_mean'] = np.mean(tmp[order_param])
-        tmp[f'{order_param}_std']  = np.std( tmp[order_param])
+        tmp[f'{order_param}_std'] = np.std(tmp[order_param])
 
     return stats
-
-
-@click.command()
-@click.option('--path', default='out/txt/',   help='Path to load model data from')
-@click.option('--out', default='out/order/', help='Path to save order param data to')
-@click.option('--name', default='Vicsek',     help='Model type or experiment to load')
-@click.option('--ordp', default='ALL', type=click.Choice(order.EnumParams.names()),
-              help='Order parameter to study, all by default')
-@click.option('--conp', '-p', default=[ 'rho', 'eta' ], multiple = True,
-              help='Control parameters by which to aggregate simulations')
-@click.option('--skip', default = 500,
-              help='Number of transient states to skip to compute only on steady states')
-@click.option('--redo', is_flag=True,
-              help = 'If data exists, recompute it, otherwise just redo plot')
-def main(
-        path: str, out: str, name: str, ordp: str, conp: List[str], skip: int, redo: bool,
-    ) -> None:
-    """
-    After a large number of simulations or experiment are run, we compute average
-    order parameters on the trajectories, and then average again for all sims
-    with the same parameters. Then plot the control parameter vs the averaged
-    order parameters.
-
-    Warn if an output folder from a single simulation or experiment.
-
-    Resulting plots will be stored in out/plt
-
-    Run from the root pyflocks/ folder
-
-        python -m analysis.ensemble [flags]
-    """
-
-    if ordp == "ALL":
-        ordps = order.EnumParams.members()[1:]
-    else:
-        ordps = [ order.EnumParams[ordp] ]
-    conp = list(conp)
-
-    print(f"Will calculate order parameters {ordps} for the given trajectories and control parameters {conp}")
-
-    conp_str = '_'.join(conp)
-
-    sims = __find_sims(path, name)
-    if not len(sims.keys()):
-        print(f'No directories of type {name} found in {path}')
-        sys.exit(0)
-
-    pltitle = sims[list(sims.keys())[0]].title
-    plt.rcParams['figure.figsize'] = 10, 7
-
-    for ordp in ordps:
-        fname = f"{out}/{name}_{conp_str}_{str(ordp)}"
-        if os.path.exists(f"{fname}.npy") and not redo:
-            stats = np.load(f"{fname}.npy", allow_pickle = True).item()
-        else:
-            stats = ensemble_avg(sims, conp, ordp, skip)
-            np.save(fname, stats)
-
-        print(f"Saving figure to {out}")
-        if len(conp) == 2:
-            plot.aggregate_2param(name, stats, conp, ordp, pltitle)
-        if len(conp) == 3:
-            plot.aggregate_3param(name, stats, conp, ordp, pltitle)
-
-
-if __name__ == "__main__":
-    main()

@@ -1,11 +1,10 @@
 #!/usr/bin/python
-import numpy as np
 
-from flock.model   import FlockModel
-from util.geometry import *
-from util.util     import save_var
+from pyflocks.models.model import FlockModel
+from pyflocks.util.geometry import *
+from pyflocks.util.util import save_var
 
-from typing import Any, Dict, List, Tuple
+from typing import Dict, Tuple
 
 
 class KuramotoVicsekModel(FlockModel):

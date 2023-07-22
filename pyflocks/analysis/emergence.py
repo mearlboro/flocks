@@ -13,21 +13,12 @@ See also https://github.com/jlizier/jidt/wiki/PythonExamples for using JIDT
 in Python.
 """
 
-import click
 import jpype as jp
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 import sys
 
-from typing import Callable, Dict, Iterable, List, NamedTuple, Tuple, Union
-
-from analysis import order
-from analysis.order import EnumParams as params
-from flock.model import Flock, FlockModel
-from flock.factory import FlockFactory
-from util import util
-from util.geometry import EnumBounds
+from typing import Callable, List, NamedTuple, Tuple, Union
 
 
 class JVM:
@@ -591,45 +582,3 @@ def ensemble(
     return emstats, mistats
 
 
-@click.command()
-@click.option('--model', help = 'Directory where system trajectories are stored')
-@click.option('--est', type = click.Choice([ 'Gaussian', 'Kraskov1', 'Kraskov2', 'Kernel']),
-              help = 'Mutual Info estimator to use', required = True)
-@click.option('--decomposition', is_flag = True, default = False,
-              help = 'If true, decompose Psi into the synergy, redundancy, and correction.')
-@click.option('--pointwise',  is_flag = True, default = False,
-              help = 'If true, use pointwise mutual information for emergence calculation.')
-@click.option('--skip', default = 0,
-              help = 'Number of timesteps to wait before calculation e.g. for removing transients')
-def test(model: str, est: str,
-         decomposition: bool, pointwise: bool, skip: int
-    ) -> None:
-    """
-    Test the emergence calculator on the trajectories specified in `filename`, or
-    on a random data stream.
-    """
-    pth = ''
-    if model:
-        m = FlockFactory.load(model)
-        X = m.traj['X']
-        n = m.n
-        M = order.param(params.CMASS, X, [], m.l, m.r, m.bounds)[params.CMASS]
-        pth = m.mkdir('out/order')
-    else:
-        # generate data for 1000 timesteps for 2 variables
-        np.random.seed(0)
-        X = np.random.normal(0, 1, size = (1000, 5))
-        M = np.sum(X, axis = 1)
-
-    skip = int(skip)
-    est = MutualInfo.get(est)
-    dts = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
-    results = system(X[skip:], M[skip:], dts, est, pointwise, pth)
-    for dt, e in zip(dts, results):
-        print(f"{dt}: {results[0]} {results[1]}")
-
-
-if __name__ == "__main__":
-    JVM.start()
-    test()
-    JVM.stop()
