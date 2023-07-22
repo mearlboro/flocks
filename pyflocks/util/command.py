@@ -1,9 +1,10 @@
 import click
 from pyflocks.models.factory import FlockFactory
 from pyflocks.util.animate import __plot
+from pyflocks.util.plot import FlockStyle
 
 
-@click.Group()
+@click.group(name='util')
 def cli():
     pass
 

@@ -7,7 +7,7 @@ from pyflocks.models.model import FlockModel
 from pyflocks.models.reynolds import ReynoldsModel
 from pyflocks.models.vicsek import VicsekModel
 from pyflocks.util.geometry import EnumBounds, EnumNeighbours
-
+from pyflocks.util.command import cli as util_cli
 
 def __run(sim: 'FlockModel', t: int, out: str) -> None:
     txtpath = sim.mkdir(out)
@@ -139,6 +139,7 @@ def kuravicsek(out: str,
 
 
 cli.add_command(analysis_cli)
+cli.add_command(util_cli)
 
 if __name__ == "__main__":
     cli()

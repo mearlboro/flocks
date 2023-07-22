@@ -13,7 +13,7 @@ from pyflocks.models.factory import FlockFactory
 from pyflocks.util.util import load_var, save_param
 
 
-@click.group()
+@click.group(name='analysis')
 def cli():
     pass
 
