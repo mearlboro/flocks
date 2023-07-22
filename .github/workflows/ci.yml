@@ -15,21 +15,35 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: 3.11.1
-          cache: 'pip'
-      - name: Install dependencies
+      - name: Install poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: 1.2.2
+      - name: Configure poetry
+        # TODO (mis): add this secret to your repository
         run: |
-          pip install -r requirements.txt
-      - name: Run Unit Tests
+          poetry config virtualenvs.create false
+          poetry config pypi-token.pypi ${{ SECRETS.PYPI_TOKEN }}
+      #----------------------------------------------
+      #       load cached venv if cache exists
+      #----------------------------------------------
+      - name: Load cached venv
+        id: cached-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
+      #----------------------------------------------
+      # install dependencies if cache does not exist
+      #----------------------------------------------
+      - name: Install dependencies
+        if: steps.cached-dependencies.outputs.cache-hit != 'true'
+        run: |
+          poetry install
+      - name: Run Tests
         run: |
           pytest
-      - name: Build
+      - name: Build and publish
         if: github.ref == 'refs/heads/main'
         run: |
-          pip install build
-          python3 -m build
-      - name: Publish
-        if: github.ref == 'refs/heads/main'
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          # TODO (mis): add this secret to your repository
-          password: ${{ secrets.PYPI_TOKEN }}
+          poetry publish --build
