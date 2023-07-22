@@ -1,15 +1,10 @@
 #!/usr/bin/python
 from enum import Enum
-import numpy as np
-import re
-import os
 
-from flock.model      import Flock, FlockModel
-from flock.vicsek     import VicsekModel
-from flock.reynolds   import ReynoldsModel
-from flock.kuravicsek import KuramotoVicsekModel
-
-from typing import Any, Union
+from pyflocks.models.model import Flock, FlockModel
+from pyflocks.models.vicsek import VicsekModel
+from pyflocks.models.reynolds import ReynoldsModel
+from pyflocks.models.kuravicsek import KuramotoVicsekModel
 
 
 class EnumModels(Enum):

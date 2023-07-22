@@ -1,11 +1,10 @@
 #!/usr/bin/python3
 from enum import Enum
+
 import matplotlib.pyplot as plt
-import numpy as np
+from pyflocks.util.geometry import EnumBounds, centre_of_mass, sum_vec_ang, ang_to_vec
 
-from util.geometry import *
-
-import typing
+from pyflocks.util.util import *
 
 
 class FlockStyle(Enum):

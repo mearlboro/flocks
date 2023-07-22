@@ -1,13 +1,12 @@
 #!/usr/bin/python
 from abc import abstractmethod
 import numpy as np
-import re
 import os
 
-from util.geometry import EnumBounds, EnumNeighbours
-from util.util     import load_var, proc_params
+from pyflocks.util.geometry import EnumBounds, EnumNeighbours
+from pyflocks.util.util import load_var, proc_params
 
-from typing import Any, Dict, List, Tuple
+from typing import Dict
 
 
 class Flock:

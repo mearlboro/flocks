@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "pyflocks"
+version = "0.1.0"
+description = "Library for simulating flocks"
+authors = ["mis <mearlboro@protonmail.com"]
+readme = "README.md"
+license = "UNLICENSE"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.13"
+click = "^8.1.6"
+JPype1 = "^1.4.1"
+matplotlib = "^3.7.2"
+numpy = "^1.25.1"
+scipy = "^1.11.1"
+
+[tool.poetry.scripts]
+pyflocks = "pyflocks.main:cli"
+
+
+[tool.poetry.group.dev.dependencies]
+pyhamcrest = "^2.0.4"
+pytest = "^7.4.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -4,10 +4,9 @@ from mpl_toolkits.axes_grid1 import ImageGrid
 import numpy as np
 import os
 
-from flock.model import Flock
-from util.plot import plot_trajectories
+from pyflocks.models.model import Flock
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 
 def order_params(
