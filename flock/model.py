@@ -295,7 +295,7 @@ class FlockModel(Flock):
 
         # get number of agents, timesteps, and system size from the array shapes
         (t, n) = Xvars[0].shape
-        l = np.sqrt(n / ps_dict['rho'])
+        l = round(np.sqrt(n / ps_dict['rho']), 2)
 
         print(f"Found time series of length t={t} for n={n} variables")
 

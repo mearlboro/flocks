@@ -17,10 +17,10 @@ class EnumParams(Enum):
     ALL               = 0
     VICSEK_ORDER      = 1
     MEAN_ANGLE        = 2
-    VAR_ANGLE         = 3
+    STD_ANGLE         = 3
     CMASS             = 4
     MEAN_DIST_CMASS   = 5
-    VAR_DIST_CMASS    = 6
+    STD_DIST_CMASS    = 6
     MEAN_NEIGHBOURS   = 7
     MEAN_DIST_NEAREST = 8
 
@@ -28,10 +28,10 @@ class EnumParams(Enum):
         'ALL'               : '',
         'VICSEK_ORDER'      : 'Vicsek order parameter',
         'MEAN_ANGLE'        : 'Mean player direction',
-        'VAR_ANGLE'         : 'Spread of player direction',
+        'STD_ANGLE'         : 'Spread of player direction',
         'CMASS'             : 'Centre of mass',
         'MEAN_DIST_CMASS'   : 'Mean distance from centre',
-        'VAR_DIST_CMASS'    : 'Spread from centre',
+        'STD_DIST_CMASS'    : 'Spread from centre',
         'MEAN_NEIGHBOURS'   : 'Mean number of interaction neighbours',
         'MEAN_DIST_NEAREST' : 'Mean distance to nearest neighbour'
     }
@@ -40,10 +40,10 @@ class EnumParams(Enum):
         'ALL'               : '',
 		'VICSEK_ORDER'      : '$v_a(t)$',
 		'MEAN_ANGLE'        : '$\\tilde{\\theta}(t)$',
-		'VAR_ANGLE'         : '$\\sigma^2_{\\theta}(t)$',
+		'STD_ANGLE'         : '$\\sigma^2_{\\theta}(t)$',
 		'CMASS'				: '$\\tilde{X}$',
 		'MEAN_DIST_CMASS'   : '$\\tilde{d}_{\\tilde{X}}(t)$',
-		'VAR_DIST_CMASS'    : '$\\sigma^2_{\\tilde{d}}(t)$',
+		'STD_DIST_CMASS'    : '$\\sigma_{\\tilde{d}}(t)$',
 		'MEAN_NEIGHBOURS'   : '$\\tilde{\\rho}(t)$',
 		'MEAN_DIST_NEAREST' : '$\\tilde{\\delta}(t)$'
 	}
@@ -106,7 +106,7 @@ def __vicsek_order(
     return avg_abs_vel
 
 
-def __mean_var_angle(
+def __mean_std_angle(
         At: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
     """
@@ -128,14 +128,13 @@ def __mean_var_angle(
     (_, N) = At.shape
 
     mean_ang = np.array([ average_angles(A) for A in At ])
-    var_ang  = np.array([ np.sum([ (am - a)**2
-                          for a in A ])
+    std_ang  = np.array([ np.sqrt(np.sum([ (am - a)**2  for a in A ]))
                           for (am, A) in zip(mean_ang, At) ]) / N
 
-    return mean_ang, var_ang
+    return mean_ang, std_ang
 
 
-def __mean_var_dist_cmass(
+def __mean_std_dist_cmass(
         Xt: np.ndarray,
         bounds: EnumBounds,
         L: int
@@ -167,9 +166,9 @@ def __mean_var_dist_cmass(
                          for x in X ]
                          for (X, c) in zip(Xt, cmass) ])
     mean_dist = np.mean(dist, axis = 1)
-    var_dist  = np.var( dist, axis = 1)
+    std_dist  = np.std( dist, axis = 1)
 
-    return np.array(cmass), mean_dist, var_dist
+    return np.array(cmass), mean_dist, std_dist
 
 
 def __mean_neighbours(
@@ -286,10 +285,10 @@ def param(
 
         EnumParams.VICSEK_ORDER:      (T,) Vicsek order parameter
         EnumParams.MEAN_ANGLE:        (T,) mean orientation
-        EnumParams.VAR_ANGLE:         (T,) variance (spread) of orientation
+        EnumParams.STD_ANGLE:         (T,) std dev of orientation
         EnumParams.CMASS:             (T,D) coordinates of flock centre of mass
         EnumParams.MEAN_DIST_CMASS:   (T,) mean distance from centre of mass
-        EnumParams.VAR_DIST_CMASS:    (T,) variance (spread) of distance from centre of mass
+        EnumParams.STD_DIST_CMASS:    (T,) std dev of distance from centre of mass
         EnumParams.MEAN_NEIGHBOURS:   (T,) mean number of interaction neighbours
         EnumParams.MEAN_DIST_NEAREST: (T,) mean distance to nearest neighbour
     """
@@ -305,14 +304,14 @@ def param(
         print('Computing mean & standard deviation of angle')
         start = time.time()
         m[EnumParams.MEAN_ANGLE], \
-        m[EnumParams.VAR_ANGLE] = __mean_var_angle(At)
+        m[EnumParams.STD_ANGLE] = __mean_std_angle(At)
         print("Time elapsed: {}s".format(int(time.time() - start)))
 
         print('Computing mean & standard deviation of distance from cmass')
         start = time.time()
         m[EnumParams.CMASS], \
         m[EnumParams.MEAN_DIST_CMASS], \
-        m[EnumParams.VAR_DIST_CMASS] = __mean_var_dist_cmass(Xt, bounds, L)
+        m[EnumParams.STD_DIST_CMASS] = __mean_std_dist_cmass(Xt, bounds, L)
         print("Time elapsed: {}s".format(int(time.time() - start)))
 
         print('Computing mean number of neighbours')
@@ -329,16 +328,16 @@ def param(
         print('Computing Vicsek order parameter')
         m[param] = __vicsek_order(At, Vt, v)
 
-    elif param in [ EnumParams.MEAN_ANGLE, EnumParams.VAR_ANGLE ]:
+    elif param in [ EnumParams.MEAN_ANGLE, EnumParams.STD_ANGLE ]:
         print('Computing mean & standard deviation of angle')
         m[EnumParams.MEAN_ANGLE], \
-        m[EnumParams.VAR_ANGLE] = __mean_var_angle(At)
+        m[EnumParams.STD_ANGLE] = __mean_std_angle(At)
 
-    elif param in [ EnumParams.MEAN_DIST_CMASS, EnumParams.VAR_DIST_CMASS]:
+    elif param in [ EnumParams.MEAN_DIST_CMASS, EnumParams.STD_DIST_CMASS]:
         print('Computing mean & standard deviation of distance from cmass')
         m[EnumParams.CMASS], \
         m[EnumParams.MEAN_DIST_CMASS], \
-        m[EnumParams.VAR_DIST_CMASS] = __mean_var_dist_cmass(Xt, bounds, L)
+        m[EnumParams.STD_DIST_CMASS] = __mean_std_dist_cmass(Xt, bounds, L)
 
     elif param == EnumParams.CMASS:
         print('Computing cmass')
