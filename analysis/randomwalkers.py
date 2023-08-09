@@ -154,7 +154,7 @@ aaaand id be down to h    will it be the
     mean_std = lambda xs: (np.mean(xs, axis = 0), np.std(xs, axis = 0))
 
     sims, T, N = Xs.shape[:3]
-    repeat = int(T / max(dts))
+    repeat = int(T / (max(dts) - 1))
     print(f"Computing emergence for {repeat} pairs of t,t'")
 
     for dt in dts:
@@ -180,11 +180,11 @@ aaaand id be down to h    will it be the
         # for the individual MI over the mean and std should be computed over i
         # first get means over t, and the mean and std dev of those are over i
         mis_stats = np.array([
-            ( np.mean([mis[t].vmi    for t in range(0, repeat)]), 0 ),
-            mean_std(np.mean([mis[t].xvmi   for t in range(0, repeat)], axis=0)),
-            mean_std(np.mean([mis[t].vxmi   for t in range(0, repeat)], axis=0)),
-            mean_std(np.mean([mis[t].xiximi for t in range(0, repeat)], axis=0)),
-            mean_std(np.mean([mis[t].xixjmi for t in range(0, repeat)], axis=0))
+            ( np.mean([mis[t].vmi    for t in range(0, repeat - 2)]), 0 ),
+            mean_std(np.mean([mis[t].xvmi   for t in range(0, repeat - 2)], axis = 0)),
+            mean_std(np.mean([mis[t].vxmi   for t in range(0, repeat - 2)], axis = 0)),
+            mean_std(np.mean([mis[t].xiximi for t in range(0, repeat - 2)], axis = 0)),
+            mean_std(np.mean([mis[t].xixjmi for t in range(0, repeat - 2)], axis = 0))
             ]).T
         mistats.append(mis_stats) # has shape (2, 5)
 
@@ -217,12 +217,12 @@ def plot_ensembles_multi_n(dts, sims = 10000,
 
 
 def rw_ensemble(
-        sims: int, N: int, e: float, t: int
+        sims: int, N: int, e: float, g: float, t: int
     ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     from flock.walker import RandomWalker
 
-    #rws = [ RandomWalker(np.random.randint(10000), n = N, e = e, dt = 0, rand_state = False)
-    rws = [ RandomWalker(seed = i, n = N, e = e, dt = 0, rand_state = False)
+    X0  = np.array([i for i in range(N)]).reshape((N, 1))
+    rws = [ RandomWalker(seed = i, n = N, e = e, g = g, dx = 0, start_state = X0)
             for i in range(sims) ]
     for _ in list(range(t)):
         for rw in rws:
@@ -236,17 +236,19 @@ def rw_ensemble(
 @click.command()
 @click.option('-n', default = 32)
 @click.option('-e', default = 1.0)
-@click.option('-r', default = 100)
-def main(n: int, e: float, r: int):
-    title = f"{n} random walkers with noise " + "$\\eta \sim \mathcal{N}$" + f"(0, {e})"
+@click.option('-g', default = 0.0)
+@click.option('-r', default = 1000)
+def main(n: int, e: float, g: float, r: int):
+    title = f"{n} random walkers with coupling $\\gamma$ = {g} and noise " + \
+             "$\\eta \sim \mathcal{N}$" + f"(0, {e})"
     title += f"\n(ensembles of {r} realisations)"
-    name = f"RandomWalkers_ens{r}_n{n}_e{e}_dt0"
+    name = f"RandomWalkers_ens{r}_n{n}_e{e}_g{g}_dx0"
     pth = f"rw/{name}"
 
     dts = range(2, 21)
     t = 200
 
-    Xs, Vs = rw_ensemble(r, n, e, t)
+    Xs, Vs = rw_ensemble(r, n, e, g, t)
     if not os.path.isdir(pth):
         os.mkdir(pth)
     nonstationary_ensemble(Xs, Vs, dts, n, pth)
