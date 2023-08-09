@@ -37,7 +37,8 @@ def ensemble_avg(
         control_params: List[str],
         order_param:    str,
         tt:             int,
-        path:           str = 'out/order'
+        redo:           bool,
+        path:           str = 'out/order',
     ) -> Dict[float, Dict[float, Any]]:
     """
     For all models loaded in the given dict, compute order params, and aggregate
@@ -117,8 +118,12 @@ def ensemble_avg(
             Xt = m.traj['X'][tt:]
             At = m.traj['A'][tt:]
 
-            Vt = order.param(order_param, Xt, At, m.l, m.params['r'], m.bounds)[order_param]
-            np.save(f'{path}/{m.string}_{str(order_param)}', Vt, allow_pickle=True)
+            orderpath = f'{path}/{m.string}/{str(order_param)}.txt'
+            if os.path.isfile(orderpath) and not redo:
+                Vt = np.loadtxt(orderpath)
+            else:
+                Vt = order.param(order_param, Xt, At, m.l, m.params['r'], m.bounds)[order_param]
+                np.savetxt(f'{path}/{m.string}/{str(order_param)}.txt', Vt)
 
             if order_param in tmp.keys():
                 tmp[order_param].append(np.mean(Vt))
@@ -145,7 +150,7 @@ def ensemble_avg(
 @click.option('--redo', is_flag=True, default=False,
               help = 'If data exists, recompute it, otherwise just redo plot')
 def main(
-        path: str, out: str, name: str, ordp: str, conp: List[str], redo: bool,
+        path: str, out: str, name: str, ordp: str, conp: List[str], skip: int, redo: bool,
     ) -> None:
     """
     After a large number of simulations or experiment are run, we compute average
@@ -181,7 +186,7 @@ def main(
         if os.path.exists(f"{fname}.npy") and not redo:
             stats = np.load(f"{fname}.npy", allow_pickle = True).item()
         else:
-            stats = ensemble_avg(sims, conp, ordp, skip)
+            stats = ensemble_avg(sims, conp, ordp, skip, redo)
             np.save(fname, stats)
 
         print(f"Saving figure to {out}")

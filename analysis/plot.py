@@ -130,6 +130,9 @@ def aggregate_3param(
     ):
     """
     Plot aggregated statistics or order parameters grouping by 3 model parameters.
+
+    Stats is a dict containing an array with all instantaneous values, plus the
+    ensemble mean and std.
     """
 
     if len(conp) != 3:
@@ -142,8 +145,8 @@ def aggregate_3param(
 
         groups = list(set([ p2 for p1 in xval for p2 in stats[p0][p1].keys() ]))
         for p2 in groups:
-            yval = [ np.mean(stats[p0][p1][p2][conp]) for p1 in xval
-                                                        if p2 in stats[p0][p1].keys()]
+            yval = [ np.mean(stats[p0][p1][p2][ordp]) for p1 in xval
+                                                      if p2 in stats[p0][p1].keys()]
 
             plt.plot(xval, yval, label = f'{conp[2]} = {p2}',
                 linestyle = '--', marker = next(markers), c = np.random.rand(3,))
