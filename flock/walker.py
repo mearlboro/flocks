@@ -9,21 +9,34 @@ from typing import Any, Dict, List, Tuple
 
 class RandomWalker():
     """
-    The strating positions of particles are distributed uniformly at random.
+    The starting positions of particles are distributed uniformly at random
+    unless stated otherwise.
 
     The position Xi of each particle i evolves as follows after t timesteps of
-    size dt, with noise for each term at each time E_i(t'):
+    size dt, with noise for each term at each time Ei(t):
 
-        Xi(t) = Xi(0) + t*dt + sum_t' E_i(t')
+        Xi(t+1) = Xi(t) + dt*dx + Ei(t)
 
-    assuming E_i(t) ~ N(0, sigma^2)
+    assuming Ei(t) ~ N(0, sigma^2)
+
+    If there is any coupling, then each particle is updated according to the
+    positions of its neighbours and the coupling g:
+
+        Xi(t+1) = Xi(t) + g(X[i-1](t) + X[i+1](t) - 2 Xi(t)) + Ei(t)
+
+    for i in range(2, N-1).
+
+    Open boundaries are given by
+
+        x[1](t+1) = x[1](t) + g(x[2](t)   - x[1](t)) + E1(t)
+        x[N](t+1) = x[N](t) + g(x[N-1](t) - x[N](t)) + EN(t)
+
     """
-
     def __init__(self, seed: int,
                  n: int, e: float,
-                 dt: float = 1,
+                 g: float = 0, dt: float = 1.0, dx: float = 0.0,
                  rand_state: bool = True,
-                 start_state: np.ndarray = Null
+                 start_state: np.ndarray = None
         ) -> None:
         """
         Initialise model with parameters, then create random 1D coordinate array
@@ -40,23 +53,30 @@ class RandomWalker():
         e
             perturbation. Noise E added in each evolution step is Gaussian
             distributed in N(0, e^2)
+        g
+            coupling between a particle and its neighbours.
         dt = 1
             time unit
+        dx = 0
+            distance moved in one time unit
         rand_state
-            if set, start from random initial condiitons, otherwise start at 0
+            if set, start from random initial condiitons, otherwise start at
+        stats_state
+            and otherwise all particles start at 0
         """
         # initialise model-specific parameters
         self.n = n
         self.e = e
+        self.g = g
         self.dt = dt
+        self.dx = dx
         self.seed = seed
 
         # initialise seed
         np.random.seed(seed)
 
         # initialise positions
-        #self.X0 = np.random.uniform(-1, 1, size = (n, 1))
-        if start_state:
+        if start_state is not None:
             self.X0 =  start_state
         elif rand_state:
             self.X0 = np.random.normal(0, 1, size = (n, 1))
@@ -69,7 +89,7 @@ class RandomWalker():
         self.traj = {}
         self.traj['X'] = []
 
-        print(f"Initialised {n} 1D random walkers with seed {seed} and noise ~ N(0, {e**2})")
+        print(f"Initialised {n} 1D random walkers with seed {seed}, coupling {g} and noise ~ N(0, {e**2})")
 
 
     def update(self) -> None:
@@ -81,9 +101,19 @@ class RandomWalker():
         update array X in current object
         increment counter t as a new timestep has passed
         """
+        n = self.n
+        X = self.X
+        # compute noise
+        E = np.random.normal(0, self.e**2, size = (n, 1))
+        # compute couplings
+        C = np.zeros((n, 1))
+        C[1:n-1] = X[0:n-2] + X[2:n] - 2 * X[1:n-1]
+        C[0]     = X[1]   - X[0]
+        C[n-1]   = X[n-2] - X[n-1]
+        C *= self.g
 
-        E = np.random.normal(0, self.e**2, size = (self.n, 1))
-        X = self.X + self.dt + E
+        # update positions
+        X = self.X + self.dt * self.dx + C + E
 
         self.X = np.copy(X)
         self.t += self.dt
