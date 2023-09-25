@@ -35,6 +35,7 @@ class RandomWalker():
     def __init__(self, seed: int,
                  n: int, e: float,
                  g: float = 0, dt: float = 1.0, dx: float = 0.0,
+                 a: int = 1,
                  rand_state: bool = True,
                  start_state: np.ndarray = None
         ) -> None:
@@ -59,15 +60,19 @@ class RandomWalker():
             time unit
         dx = 0
             distance moved in one time unit
+        a = 1
+            initial distance between particles, if rand_state and start_state
+            not set
         rand_state
             if set, start from random initial condiitons, otherwise start at
-        stats_state
-            and otherwise all particles start at 0
+        start_state
+            and otherwise all particles start at i*a
         """
         # initialise model-specific parameters
         self.n = n
         self.e = e
         self.g = g
+        self.a = a
         self.dt = dt
         self.dx = dx
         self.seed = seed
@@ -81,7 +86,7 @@ class RandomWalker():
         elif rand_state:
             self.X0 = np.random.normal(0, 1, size = (n, 1))
         else:
-            self.X0 = np.zeros(shape = (n, 1))
+            self.X0 = np.arange(1, n + 1) * a
         self.X  = np.copy(self.X0)
 
         # trajectories
@@ -89,7 +94,7 @@ class RandomWalker():
         self.traj = {}
         self.traj['X'] = []
 
-        print(f"Initialised {n} 1D random walkers with seed {seed}, coupling {g} and noise ~ N(0, {e**2})")
+        print(f"Initialised {n} 1D random walkers with seed {seed}, coupling {g} and noise ~ N(0, {round(e**2, 4)})")
 
 
     def update(self) -> None:
@@ -108,8 +113,8 @@ class RandomWalker():
         # compute couplings
         C = np.zeros((n, 1))
         C[1:n-1] = X[0:n-2] + X[2:n] - 2 * X[1:n-1]
-        C[0]     = X[1]   - X[0]
-        C[n-1]   = X[n-2] - X[n-1]
+        C[0]     = X[1]     - X[0]   - self.a
+        C[n-1]   = X[n-2]   - X[n-1] + self.a
         C *= self.g
 
         # update positions
