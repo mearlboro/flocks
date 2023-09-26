@@ -28,14 +28,13 @@ class RandomWalker():
 
     Open boundaries are given by
 
-        x[1](t+1) = x[1](t) + g(x[2](t)   - x[1](t)) + E1(t)
-        x[N](t+1) = x[N](t) + g(x[N-1](t) - x[N](t)) + EN(t)
+        x[1](t+1) = x[1](t) + g(x[2](t)   - x[1](t) - a) + E1(t)
+        x[N](t+1) = x[N](t) + g(x[N-1](t) - x[N](t) + a) + EN(t)
 
     """
     def __init__(self, seed: int,
                  n: int, e: float,
-                 g: float = 0, dt: float = 1.0, dx: float = 0.0,
-                 a: int = 1,
+                 g: float = 0, a: int = 1, dt: float = 1.0, dx: float = 0.0,
                  rand_state: bool = True,
                  start_state: np.ndarray = None
         ) -> None:
