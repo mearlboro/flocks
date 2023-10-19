@@ -7,17 +7,19 @@ from util.util     import save_var
 from typing import Any, Dict, List, Tuple
 
 
-class RandomWalker():
+class OUWalker():
     """
-    The starting positions of particles are distributed uniformly at random
-    unless stated otherwise.
+    This is a version of the Gaussian random walker but which is designed to be
+    stationary.
+
+    The starting positions of particles are always 0 unless stated otherwise.
 
     The position Xi of each particle i evolves as follows after t timesteps of
-    size dt, with noise for each term at each time Ei(t):
+    size dt, with noise for each term at each time Ei(t). Moreover the particle
+    is 'dragged back' to origin with constant k.
 
-        Xi(t+1) = Xi(t) + dt*dx + Ei(t)
+        Xi(t+1) = Xi(t) + Ei(t) * dt - k X_i(t)
 
-    assuming Ei(t) ~ N(0, sigma^2)
 
     If there is any coupling, then each particle is updated according to the
     positions of its neighbours and the coupling g:
@@ -33,7 +35,7 @@ class RandomWalker():
 
     """
     def __init__(self, seed: int,
-                 n: int, e: float,
+                 n: int, e: float, k: float,
                  g: float = 0, a: int = 1, dt: float = 1.0, dx: float = 0.0,
                  rand_state: bool = True,
                  start_state: np.ndarray = None
@@ -53,6 +55,9 @@ class RandomWalker():
         e
             perturbation. Noise E added in each evolution step is Gaussian
             distributed in N(0, e^2)
+        k
+            restoring force strength: pulls back the walkers towards the
+            starting position
         g
             coupling between a particle and its neighbours.
         dt = 1
@@ -72,6 +77,7 @@ class RandomWalker():
         self.e = e
         self.g = g
         self.a = a
+        self.k = k
         self.dt = dt
         self.dx = dx
         self.seed = seed
@@ -93,7 +99,7 @@ class RandomWalker():
         self.traj = {}
         self.traj['X'] = []
 
-        print(f"Initialised {n} 1D random walkers with seed {seed}, coupling {g} and noise ~ N(0, {round(e**2, 4)})")
+        print(f"Initialised {n} 1D random walkers with seed {seed}, coupling {g}, restoring force {k} and noise ~ N(0, {round(e**2, 4)})")
 
 
     def update(self) -> None:
@@ -109,6 +115,8 @@ class RandomWalker():
         X = self.X
         # compute noise
         E = np.random.normal(0, self.e**2, size = (n, 1))
+        # compute the restoring force
+        K = X * self.k
         # compute couplings
         C = np.zeros((n, 1))
         C[1:n-1] = X[0:n-2] + X[2:n] - 2 * X[1:n-1]
@@ -117,7 +125,7 @@ class RandomWalker():
         C *= self.g
 
         # update positions
-        X = self.X + self.dt * (self.dx + C + E)
+        X = self.X + self.dt * (self.dx - K + C + E)
 
         self.X = np.copy(X)
         self.t += self.dt
