@@ -36,7 +36,7 @@ class OUWalker():
     """
     def __init__(self, seed: int,
                  n: int, e: float, k: float,
-                 g: float = 0, a: int = 1, dt: float = 1.0, dx: float = 0.0,
+                 g: float = 0, a: float = 1.0, dt: float = 1.0, dx: float = 0.0,
                  rand_state: bool = True,
                  start_state: np.ndarray = None
         ) -> None:
@@ -92,6 +92,7 @@ class OUWalker():
             self.X0 = np.random.normal(0, 1, size = (n, 1))
         else:
             self.X0 = np.arange(1, n + 1) * a
+            self.X0 = self.X0.reshape((n, 1))
         self.X  = np.copy(self.X0)
 
         # trajectories
@@ -112,11 +113,11 @@ class OUWalker():
         increment counter t as a new timestep has passed
         """
         n = self.n
-        X = self.X
+        X = np.copy(self.X)
         # compute noise
         E = np.random.normal(0, self.e**2, size = (n, 1))
         # compute the restoring force
-        K = X * self.k
+        K = (X - self.X0) * self.k
         # compute couplings
         C = np.zeros((n, 1))
         C[1:n-1] = X[0:n-2] + X[2:n] - 2 * X[1:n-1]
@@ -125,7 +126,7 @@ class OUWalker():
         C *= self.g
 
         # update positions
-        X = self.X + self.dt * (self.dx - K + C + E)
+        X += self.dt * (self.dx - K + C + E)
 
         self.X = np.copy(X)
         self.t += self.dt
