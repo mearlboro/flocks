@@ -14,7 +14,9 @@ in Python.
 """
 
 import click
+import itertools as it
 import jpype as jp
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -298,8 +300,82 @@ class EmergenceCalc:
         print('Done.')
 
 
+    @staticmethod
+    def correction_coef(n: int, q: int, r: int) -> int:
+        """
+        Compute coefficient for the double-counting redundancy correction
+
+        Params
+        ------
+        n
+            system size i.e. number of microscopic features (sources)
+        q
+            order of correction, strictly smaller than n
+        r
+            size of the set of sources being considered in the redundancy
+            calculation
+        """
+        if q > n - 1:
+            raise ValueError(f"Order of correction q={q} must be strictly smaller than number of sources n={n}")
+        if r > n or r < n - q + 1:
+            raise ValueError(f"Atom set size r={r} must be strictly between {n - q + 1} and {n}")
+
+        if r == n - q + 1:
+            return n - q
+        else:
+            return r - 1 - sum( EmergenceCalc.correction_coef(n, q, s) * math.comb(r, s)
+                                for s in range(n - q + 1, r) )
+
+
+    def intersection_info(self, ixs: List[int]) -> float:
+        """
+        Compute intersection information of all terms with indices in the given
+        list, i.e. the minimum mutual info
+
+        Params
+        ------
+        ixs
+            list of indices representing information atoms
+        """
+        infos = [ self.xvmiCalcs[i] for i in ixs ]
+        return min(infos)
+
+
+    def lattice_expansion(self, q: int = 0) -> List[int]:
+        """
+        Expand PID latice for qth order correction.
+        Given a system of size n (i.e. n sources), corrections are supported
+        up to order q=n-1. The correction consists of adding (and if needed,
+        subtracting) the intersection information from expanding the lattice.
+        The intersection (redundant) info is defined as minimal mutual info (MMI)
+
+        - The 1st order correction adds the MMI of all n redundant atoms to the
+        uncorrected Psi.
+        - The 2nd order correction adds a sum of MMIs over sets of n-1 redundant
+        atoms and subtracts the MMI of all n redundant atoms.
+        - The qth order correction adds sums over MMI over sets of n-q+1 redundant
+        atoms and subtracts the MMI over sets of n-q+2 atoms, and so on
+        """
+        n = self.n
+
+        print(f"Computing {q}-order correction")
+        corr = 0
+
+        for r in range(n - q + 1, n + 1):
+            print(f"Computing correction for sets of size {r}:")
+            atom_sets = list(it.combinations(range(n), q))
+            print(atom_sets)
+            coef = EmergenceCalc.correction_coef(n, q, r)
+            print(f"with coefficient {coef}")
+
+            corr += sum(
+                coef * self.intersection_info(ixs) for ixs in atom_sets )
+
+        return corr
+
+
     def psi(self,
-            decomposition: bool = True, correction: int = 0
+            decomposition: bool = True, q: int = 0
         ) -> Union[float, Tuple[float, float, float]]:
         """
         Use MI quantities computed in the intialiser to derive practical criterion
@@ -308,9 +384,9 @@ class EmergenceCalc:
             Psi = Synergy - Redundancy + Correction
 
         where:
-            Synergy               MI(V(t); V(t'))
-            Redundancy            sum_i MI(X_i(t); V(t'))
-            1st order Correction  (N-1) min(MI(X_i(t); V(t'))
+            Synergy     MI(V(t); V(t'))
+            Redundancy  sum_i MI(X_i(t); V(t'))
+            Correction  lattice_expansion(q)
 
         where  t' - t = self.dt
 
@@ -319,8 +395,7 @@ class EmergenceCalc:
         decomposition
             if True, return Synergy, Redundancy and Correction instead of Psi
         correction
-            compute lattice correction of order given by this value. Currently
-            supports only 0 and 1.
+            compute lattice correction of order given by this value.
 
         Returns
         ------
@@ -336,15 +411,17 @@ class EmergenceCalc:
         """
         msg = "Computing Psi "
         if correction:
-            msg += f"using lattice correction of order {correction}"
+            msg += f"using lattice correction of order {q}"
         print(msg)
 
         syn  = self.vmiCalc
         red  = sum(xvmi for xvmi in self.xvmiCalcs.values())
         corr = 0
 
-        if correction == 1:
-            corr += (self.n - 1) * min(self.xvmiCalcs.values())
+        if correction > self.n - 1:
+            raise ValueError(f"Order of correction q={q} must be strictly smaller than number of sources n={self.n}")
+
+        corr = self.lattice_expansion(q)
 
         if decomposition:
             return syn, red, corr
