@@ -64,7 +64,7 @@ class JVM:
             print('Done.')
 
     @classmethod
-    def javify(self, X: np.ndarray) -> jp.JArray:
+    def javify(self, X: np.ndarray, dtype: jp.JClass) -> jp.JArray:
         """
         Convert a numpy array into a Java array to pass to the JIDT classes and
         functions.
@@ -84,6 +84,9 @@ class JVM:
         """
         X = np.array(X)
 
+        if len(X.shape) > 1 and X.shape[1] == 1:
+            X = X.reshape((X.shape[0],))
+
         if len(X.shape) == 1:
             dim = 1
             X = X[np.newaxis, :]
@@ -91,10 +94,10 @@ class JVM:
             dim = len(X.shape)
 
         if dim > 1:
-            jX = jp.JArray(jp.JDouble, dim)(X.tolist())
+            jX = jp.JArray(dtype, dim)(X.tolist())
         else:
             # special case to deal with scalars
-            jX = jp.JArray(jp.JDouble, 1)(X.flatten())
+            jX = jp.JArray(dtype, 1)(X.flatten())
 
         return jX
 
@@ -141,14 +144,30 @@ def _MICalc(calcName: Callable[None, str]) -> Union[np.ndarray, float]:
         if len(X) != len(Y):
             raise ValueError('Cannot compute MI for time series of different lengths')
 
-        jX, jY = (JVM.javify(X[dt:]), JVM.javify(Y[:-dt]))
-
         calc = jp.JClass(calcName())()
-        calc.initialise(X.shape[1], Y.shape[1])
+
+        # we displace the second array to compute time delays
+        if 'Discrete' in calcName():
+            jX, jY = (JVM.javify(X[dt:], jp.JInt), JVM.javify(Y[:-dt], jp.JInt))
+        else:
+            jX, jY = (JVM.javify(X[dt:], jp.JDouble), JVM.javify(Y[:-dt], jp.JDouble))
+
+        # the discrete MI calc in JIDT is initialised with alphabet sizes and
+        # data must be added incrementally by .addObservations(int[], int[])
+        if 'Discrete' in calcName():
+            params = (len(np.unique(X)), len(np.unique(Y)), 0)
+            calc.initialise(*params)
+            if len(X.shape) > 1 and X.shape[1] != 1 or len(Y.shape) > 1 and Y.shape[1] != 1:
+                raise ValueError('Discrete calculator not supported for multivariate systems')
+            calc.addObservations(jX, jY)
+        # all the continuous MI calcs in JIDT are initialised with the number
+        # of variables and data can be added also all at once
+        else:
+            calc.initialise(X.shape[1], Y.shape[1])
+            calc.setObservations(jX, jY)
+            calc.finaliseAddObservations()
         #TODO: doesnt work
         #calc.setProperty('PROP_TIME_DIFF', str(dt))
-        calc.setObservations(jX, jY)
-        calc.finaliseAddObservations()
 
         if pointwise:
             # type JArray, e.g. <class 'jpype._jarray.double[]'>, can be indexed with arr[i]
@@ -171,7 +190,9 @@ class MutualInfo:
     """
     @classmethod
     def get(self, name: str) -> Callable[None, str]:
-        if name.lower() == 'gaussian':
+        if name.lower() == 'discrete':
+            return self.Discrete
+        elif name.lower() == 'gaussian':
             return self.ContinuousGaussian
         elif name.lower() == 'kraskov1':
             return self.ContinuousKraskov1
@@ -181,6 +202,14 @@ class MutualInfo:
             return self.ContinuousKernel
         else:
             raise ValueError(f"Estimator {name} not supported")
+
+    @_MICalc
+    def Discrete() -> str:
+        """
+        Compute discrete mutual information using Shannon entropy between time
+        series X and Y.
+        """
+        return 'infodynamics.measures.discrete.MutualInformationCalculatorDiscrete'
 
     @_MICalc
     def ContinuousGaussian() -> str:
@@ -410,7 +439,7 @@ class EmergenceCalc:
             unique information in the redundancy term
         """
         msg = "Computing Psi "
-        if correction:
+        if q:
             msg += f"using lattice correction of order {q}"
         print(msg)
 
@@ -418,7 +447,7 @@ class EmergenceCalc:
         red  = sum(xvmi for xvmi in self.xvmiCalcs.values())
         corr = 0
 
-        if correction > self.n - 1:
+        if q > self.n - 1:
             raise ValueError(f"Order of correction q={q} must be strictly smaller than number of sources n={self.n}")
 
         corr = self.lattice_expansion(q)
@@ -454,6 +483,7 @@ class EmergenceCalc:
         delta = max(vx - sum(self.xmiCalcs[(i, j)] for i in range(self.n))
                     for j, vx in enumerate(self.vxmiCalcs.values()) )
         return delta
+
 
 
 class MutualInfos(NamedTuple):
@@ -534,8 +564,8 @@ def system(
         calc = EmergenceCalc(X, V, mutualInfo, pointwise, dt = dt)
 
         e = EmergenceStats(
-            psik0 = calc.psi(decomposition = False, correction = 0),
-            psik1 = calc.psi(decomposition = False, correction = 1),
+            psik0 = calc.psi(decomposition = False, q = 0),
+            psik1 = calc.psi(decomposition = False, q = 1),
             gamma = calc.gamma(),
             delta = calc.delta(),
         )
@@ -595,8 +625,6 @@ def ensemble(
         array with a range of scalar time differences
     mutualInfo
         mutual information function to use from MutualInfo class
-    correction
-        order of the lattice correction when computing Psi
     path
         if set, dump the results of for the ensemble to path
     """
@@ -670,7 +698,7 @@ def ensemble(
 
 @click.command()
 @click.option('--model', help = 'Directory where system trajectories are stored')
-@click.option('--est', type = click.Choice([ 'Gaussian', 'Kraskov1', 'Kraskov2', 'Kernel']),
+@click.option('--est', type = click.Choice([ 'Discrete', 'Gaussian', 'Kraskov1', 'Kraskov2', 'Kernel']),
               help = 'Mutual Info estimator to use', required = True)
 @click.option('--decomposition', is_flag = True, default = False,
               help = 'If true, decompose Psi into the synergy, redundancy, and correction.')
@@ -695,8 +723,12 @@ def test(model: str, est: str,
     else:
         # generate data for 1000 timesteps for 2 variables
         np.random.seed(0)
-        X = np.random.normal(0, 1, size = (1000, 5))
-        M = np.sum(X, axis = 1)
+        if est == 'Discrete':
+            X = np.random.randint(2, size = (1000, 2))
+            M = np.array([ np.logical_xor(*x) for x in X ], dtype = int)
+        else:
+            X = np.random.normal(0, 1, size = (1000, 2))
+            M = np.sum(X, axis = 1)
 
     est = MutualInfo.get(est)
     dts = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
