@@ -1,5 +1,8 @@
 click
+dit
 jpype1
 matplotlib
 numpy
+nxpd
 scipy
+xarray
