@@ -387,12 +387,11 @@ class EmergenceCalc:
         """
         n = self.n
 
-        print(f"Computing {q}-order correction")
         corr = 0
 
         for r in range(n - q + 1, n + 1):
             print(f"Computing correction for sets of size {r}:")
-            atom_sets = list(it.combinations(range(n), q))
+            atom_sets = list(it.combinations(range(n), r))
             print(atom_sets)
             coef = EmergenceCalc.correction_coef(n, q, r)
             print(f"with coefficient {coef}")
