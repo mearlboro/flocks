@@ -10,46 +10,80 @@ Implement the theory of causal emergence in discrete information theory package
 dit using mutual infomation
 '''
 def _vmi(dist: BaseDistribution) -> float:
+    '''
+    Compute mutual information of the whole system (e.g. all source vars,
+    jointly) with the target
+    '''
     Xs = [ x[0] for x in dist.rvs[:-1]]
     V  = dist.rvs[-1]
     return mi(dist, Xs, V)
 
 def _xvmi(dist: BaseDistribution) -> float:
+    '''
+    Compute the sum of mutual information between each individual source and
+    target
+    '''
     X = dist.rvs[:-1]
     V = dist.rvs[-1]
     sum_mi = sum( mi(dist, x, V) for x in X )
     return sum_mi
 
 def _vxmi(dist: BaseDistribution) -> float:
+    '''
+    Compute the sum of mutual information between target and each individual
+    source
+    '''
     X = dist.rvs[:-1]
     V = dist.rvs[-1]
     sum_mi = sum( mi(dist, V, x) for x in X )
     return sum_mi
 
 def _xmi(dist: BaseDistribution) -> float:
+    '''
+    Compute the sum of mutual information between all pairs of individual
+    sources
+    '''
     X = dist.rvs[:-1]
     sum_mi = sum( mi(dist, xi, xj) for xi in X for xj in X )
     return sum_mi
 
 def _xjmi(dist: BaseDistribution, xj: List[int]) -> float:
+    '''
+    Compute the sum of mutual information between a given source xj and all
+    sources
+    '''
     X = dist.rvs[:-1]
     sum_mi = sum( mi(dist, xi, xj) for xi in X )
     return sum_mi
 
 
-
 def mi_psi(dist: BaseDistribution) -> float:
+    '''
+    Compute the Psi measure as the difference between how the sources jointly
+    and individually predict the target
+    '''
     return _vmi(dist) - _xvmi(dist)
 
 def mi_delta(dist: BaseDistribution) -> float:
+    '''
+    Compute the downward causation Delta measure as the maximum difference
+    between the mutual information between the target and each source and the
+    sum of mutual information between that source and all other sources
+    '''
     X = dist.rvs[:-1]
     V = dist.rvs[-1]
     return max( mi(dist, V, xj) - _xjmi(dist, xj) for xj in X )
 
 def mi_gamma(dist: BaseDistribution) -> float:
+    '''
+    Compute the causal decoupling Gamma measure as the maximum mutual info
+    between the target and each individual source
+    '''
     X = dist.rvs[:-1]
     V = dist.rvs[-1]
     return max( mi(dist, V, x) for x in X )
+
+
 
 '''
 Implement the theory of causal emergence in discrete information theory package
@@ -130,3 +164,21 @@ def pid_psi(
 
     return psi
 
+
+'''
+Test the theory against multiple cases
+'''
+if __name__ == "__main__":
+    stats = []
+    for n_var in range(3, 6):
+        diffs = []
+        for _ in range(30):
+            d = dit.random_distribution(n_var, 2)
+            i = dit.pid.PID_MMI(d)
+            ppid = pid_psi(i)
+            pmi  = mi_psi(d)
+            diffs.append(np.abs(ppid - pmi))
+        m = np.mean(diffs)
+        s = np.std(diffs)
+        stats.append((m, s))
+        print(f"{n_var}\t{m}\t{s}")
