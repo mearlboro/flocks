@@ -1,6 +1,60 @@
 import dit
-
+from dit.shannon import mutual_information as mi
+from dit.distribution import BaseDistribution
+from math import isclose
+import numpy as np
 from typing import Dict, List, Tuple, Union, Set
+
+'''
+Implement the theory of causal emergence in discrete information theory package
+dit using mutual infomation
+'''
+def _vmi(dist: BaseDistribution) -> float:
+    Xs = [ x[0] for x in dist.rvs[:-1]]
+    V  = dist.rvs[-1]
+    return mi(dist, Xs, V)
+
+def _xvmi(dist: BaseDistribution) -> float:
+    X = dist.rvs[:-1]
+    V = dist.rvs[-1]
+    sum_mi = sum( mi(dist, x, V) for x in X )
+    return sum_mi
+
+def _vxmi(dist: BaseDistribution) -> float:
+    X = dist.rvs[:-1]
+    V = dist.rvs[-1]
+    sum_mi = sum( mi(dist, V, x) for x in X )
+    return sum_mi
+
+def _xmi(dist: BaseDistribution) -> float:
+    X = dist.rvs[:-1]
+    sum_mi = sum( mi(dist, xi, xj) for xi in X for xj in X )
+    return sum_mi
+
+def _xjmi(dist: BaseDistribution, xj: List[int]) -> float:
+    X = dist.rvs[:-1]
+    sum_mi = sum( mi(dist, xi, xj) for xi in X )
+    return sum_mi
+
+
+
+def mi_psi(dist: BaseDistribution) -> float:
+    return _vmi(dist) - _xvmi(dist)
+
+def mi_delta(dist: BaseDistribution) -> float:
+    X = dist.rvs[:-1]
+    V = dist.rvs[-1]
+    return max( mi(dist, V, xj) - _xjmi(dist, xj) for xj in X )
+
+def mi_gamma(dist: BaseDistribution) -> float:
+    X = dist.rvs[:-1]
+    V = dist.rvs[-1]
+    return max( mi(dist, V, x) for x in X )
+
+'''
+Implement the theory of causal emergence in discrete information theory package
+dit using the PID lattice expansion
+'''
 
 def count_singletons(atom: Tuple[Tuple[int, ...], ...]) -> int:
     '''
@@ -59,7 +113,7 @@ def n_singletons(
     '''
     return [ atom for atom in pid._lattice if count_singletons(atom) == n ]
 
-def psi(
+def pid_psi(
         pid: "dit.pid.pid.BasePID"
     ) -> float:
     '''
@@ -75,3 +129,4 @@ def psi(
         psi += (1 - g) * sum( pid.get_pi(atom) for atom in atoms )
 
     return psi
+
