@@ -124,7 +124,7 @@ def pid_psi(
     n_src = len(pid._lattice.bottom)
     psi = 0.0
 
-    for g in range(n_src):
+    for g in range(n_src + 1):
         atoms = n_singletons(pid, g)
         psi += (1 - g) * sum( pid.get_pi(atom) for atom in atoms )
 
