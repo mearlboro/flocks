@@ -1,14 +1,17 @@
 import dit
 from dit.shannon import mutual_information as mi
 from dit.distribution import BaseDistribution
-from math import isclose
+import itertools as it
+import math
 import numpy as np
-from typing import Dict, List, Tuple, Union, Set
+
+from typing import Callable, Dict, List, Tuple, Union, Set
 
 '''
 Implement the theory of causal emergence in discrete information theory package
 dit using mutual infomation
 '''
+
 def _vmi(dist: BaseDistribution) -> float:
     '''
     Compute mutual information of the whole system (e.g. all source vars,
@@ -18,7 +21,7 @@ def _vmi(dist: BaseDistribution) -> float:
     V  = dist.rvs[-1]
     return mi(dist, Xs, V)
 
-def _xvmi(dist: BaseDistribution) -> float:
+def _xvmi_sum(dist: BaseDistribution) -> float:
     '''
     Compute the sum of mutual information between each individual source and
     target
@@ -28,24 +31,42 @@ def _xvmi(dist: BaseDistribution) -> float:
     sum_mi = sum( mi(dist, x, V) for x in X )
     return sum_mi
 
-def _vxmi(dist: BaseDistribution) -> float:
+def _xvmi_int(
+        dist: BaseDistribution, X: List[int],
+        min_func: Callable[[float, float], float] = min
+    ) -> float:
     '''
-    Compute the sum of mutual information between target and each individual
-    source
+    Compute intersection information between sources in the list X and target.
+    By default uses minimum mutual information
     '''
-    X = dist.rvs[:-1]
     V = dist.rvs[-1]
-    sum_mi = sum( mi(dist, V, x) for x in X )
-    return sum_mi
+    int_mi = min( mi(dist, x, V) for x in X )
+    return int_mi
 
-def _xmi(dist: BaseDistribution) -> float:
+def _psi_coef(n: int, q: int, r: int) -> int:
     '''
-    Compute the sum of mutual information between all pairs of individual
-    sources
+    Compute coefficient for the double-counting redundancy correction
     '''
+    if r == n - q + 1:
+        return n - q
+    else:
+        return r - 1 - sum( _psi_coef(n, q, s) * math.comb(r, s)
+                            for s in range(n - q + 1, r))
+
+def _xvmi_corr(dist: BaseDistribution, q: int) -> float:
+    '''
+    Expand PID lattice using intersection information between groups of sources
+    and targets according to order of redundancy correction
+    '''
+    V = dist.rvs[-1]
     X = dist.rvs[:-1]
-    sum_mi = sum( mi(dist, xi, xj) for xi in X for xj in X )
-    return sum_mi
+    n = len(X)
+    corr = 0.0
+    for r in range(n - q + 1, n + 1):
+        X_sets = list(it.combinations(X, r))
+        coef = _psi_coef(n, q, r)
+        corr += sum(coef * _xvmi_int(dist, x) for x in X_sets)
+    return corr
 
 def _xjmi(dist: BaseDistribution, xj: List[int]) -> float:
     '''
@@ -57,12 +78,12 @@ def _xjmi(dist: BaseDistribution, xj: List[int]) -> float:
     return sum_mi
 
 
-def mi_psi(dist: BaseDistribution) -> float:
+def mi_psi(dist: BaseDistribution, q: int = 0) -> float:
     '''
     Compute the Psi measure as the difference between how the sources jointly
     and individually predict the target
     '''
-    return _vmi(dist) - _xvmi(dist)
+    return _vmi(dist) - _xvmi_sum(dist) + _xvmi_corr(dist, q)
 
 def mi_delta(dist: BaseDistribution) -> float:
     '''
@@ -148,7 +169,7 @@ def n_singletons(
     return [ atom for atom in pid._lattice if count_singletons(atom) == n ]
 
 def pid_psi(
-        pid: "dit.pid.pid.BasePID"
+        pid: "dit.pid.pid.BasePID", q: int = 0
     ) -> float:
     '''
     Given a PID lattice produced by a dit.pid measure, compute the Psi measure
@@ -158,7 +179,7 @@ def pid_psi(
     n_src = len(pid._lattice.bottom)
     psi = 0.0
 
-    for g in range(n_src + 1):
+    for g in range(n_src + 1 - q):
         atoms = n_singletons(pid, g)
         psi += (1 - g) * sum( pid.get_pi(atom) for atom in atoms )
 
@@ -170,15 +191,15 @@ Test the theory against multiple cases
 '''
 if __name__ == "__main__":
     stats = []
-    for n_var in range(3, 6):
-        diffs = []
-        for _ in range(30):
-            d = dit.random_distribution(n_var, 2)
-            i = dit.pid.PID_MMI(d)
-            ppid = pid_psi(i)
-            pmi  = mi_psi(d)
-            diffs.append(np.abs(ppid - pmi))
-        m = np.mean(diffs)
-        s = np.std(diffs)
-        stats.append((m, s))
-        print(f"{n_var}\t{m}\t{s}")
+    for n_var in range(3, 5):
+        for q in range(0, n_var):
+            diffs = []
+            for _ in range(30):
+                d = dit.random_distribution(n_var, 2)
+                i = dit.pid.PID_MMI(d)
+                ppid = pid_psi(i, q = q)
+                pmi  = mi_psi(d, q = q)
+                diffs.append(np.abs(ppid - pmi))
+            m = np.mean(diffs)
+            s = np.std(diffs)
+            print(f"n={n_var}\tq={q}\t{m}\t{s}")
