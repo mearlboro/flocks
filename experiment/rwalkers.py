@@ -1,15 +1,16 @@
+"""
+This script is used to compute the Psi-Gamma-Delta theory of emergence on
+INTERACTING Gaussian random walkers using FIXED time index t=1, varying t'
+and assuming NON-STATIONARITY
+"""
+
 import click
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 
 from typing import Callable, Dict, Iterable, List, Tuple, Union, NamedTuple
 
-from analysis import order
-from analysis.emergence import JVM, EmergenceCalc, MutualInfo, system, ensemble
-from flock.model import Flock, FlockModel
-from flock.factory import FlockFactory
-from util import util
+from analysis.emergence import JVM, EmergenceCalc, MutualInfo
 
 
 def rw_ensemble(
@@ -40,13 +41,13 @@ def rw_ensemble(
 @click.option('-n', default = 32)
 @click.option('-e', default = 1.0)
 @click.option('-g', default = 0.0)
-@click.option('-r', default = 1000)
+@click.option('-r', default = 2000)
 def main(s: int, n: int, e: float, g: float, r: int):
     title = f"{n} random walkers with coupling $\\gamma$ = {g} and noise " + \
              "$\\eta \sim \mathcal{N}$" + f"(0, {e})"
     title += f"\n(ensembles of {r} realisations)"
-    name = f"RandomWalkers_ens{r}_n{n}_e{e}_g{g}_dx0"
-    pth = f"rw/{name}"
+    name = f"RandomWalkers_ens{r}_n{n}_e{e}_g{g}_dx0__t1-"
+    pth = f"out/rw/{name}"
 
     if not os.path.isdir(pth):
         os.mkdir(pth)
@@ -58,12 +59,23 @@ def main(s: int, n: int, e: float, g: float, r: int):
         seeds = range(r)
 
     # stationary case with additive time difference
-    dts = [ 1, 2, 4, 8 ]
-    t = 1000
+    dts = range(1,21)
+    t = 25
     a = 1
-    Xs, Vs = rw_ensemble(r, n, e, g, a, t, seeds)
-    ensemble(True, Xs, Vs, dts, MutualInfo.ContinuousGaussian, path = pth)
 
+    Xs, Vs = rw_ensemble(r, n, e, g, a, t, seeds)
+
+    for dt in dts:
+       print(f"Computing emergence from t={1} to t'={1+dt}")
+       X  = np.concatenate((
+             Xs[:, 0, :].reshape(r, n, 1),
+             Xs[:, 0 + dt, :].reshape(r, n, 1)))
+       V  = np.concatenate((
+             Vs[:, 0].reshape(r, 1),
+             Vs[:, 0 + dt].reshape(r, 1)))
+
+       EmergenceCalc(X, V, MutualInfo.ContinuousGaussian, False,
+                     r, f"{pth}{1+dt}")
 
 if __name__ == "__main__":
     JVM.start()

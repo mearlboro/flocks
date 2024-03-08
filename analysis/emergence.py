@@ -18,6 +18,7 @@ import jpype as jp
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import pickle
 import sys
 
 from typing import Callable, Dict, Iterable, List, NamedTuple, Tuple, Union
@@ -238,7 +239,8 @@ class EmergenceCalc:
             X: np.ndarray, V: np.ndarray,
             mutualInfo: Callable[[np.ndarray, np.ndarray, bool, int], float],
             pointwise: bool = False,
-            dt: int =  1
+            dt: int =  1,
+            filename: str = ''
         ) -> None:
         """
         Initialise class with the time series corresponding to the parts Xs and
@@ -294,6 +296,11 @@ class EmergenceCalc:
         for i in range(n):
             for j in range(n):
                 self.xmiCalcs[(i, j)] = mutualInfo(self.X[i], self.X[j], pointwise, dt)
+
+        if filename:
+            print(f"Dumping EmergenceCalc object with all pairwise MI to {filename}_calc.pkl")
+            with open(f"{filename}_calc.pkl", 'wb') as f:
+                pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
 
         print('Done.')
 

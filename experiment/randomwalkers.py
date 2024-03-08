@@ -1,3 +1,10 @@
+"""
+This script was used to compute the original analysis of Psi-Gamma-Delta
+theory of emergence on NON-INTERACTING random walkers using MULTIPLICATIVE
+time index tau=t'/t assuming NON-STATIONARITY
+"""
+
+
 import click
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,8 +14,6 @@ from typing import Callable, Dict, Iterable, List, Tuple, Union, NamedTuple
 
 from analysis import order
 from analysis.emergence import JVM, EmergenceCalc, MutualInfo
-from flock.model import Flock, FlockModel
-from flock.factory import FlockFactory
 from util import util
 
 def plot_emergence(
