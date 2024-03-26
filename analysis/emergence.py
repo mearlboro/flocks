@@ -140,7 +140,7 @@ def _MICalc(calcName: Callable[None, str]) -> Union[np.ndarray, float]:
         if len(X) != len(Y):
             raise ValueError('Cannot compute MI for time series of different lengths')
 
-        jX, jY = (JVM.javify(X[dt:]), JVM.javify(Y[:-dt]))
+        jX, jY = (JVM.javify(X[:-dt]), JVM.javify(Y[dt:]))
 
         calc = jp.JClass(calcName())()
         calc.initialise(X.shape[1], Y.shape[1])
