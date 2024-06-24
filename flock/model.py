@@ -5,7 +5,7 @@ import re
 import os
 
 from util.geometry import EnumBounds, EnumNeighbours
-from util.util     import load_var, proc_params
+from util.util     import load_var, save_var, proc_params
 
 from typing import Any, Dict, List, Tuple
 
@@ -114,15 +114,32 @@ class Flock:
 
         X1t = load_var(f"{path}/x1.txt")
         X2t = load_var(f"{path}/x2.txt")
-        At  = load_var(f"{path}/a.txt")
-        Vt  = load_var(f"{path}/v.txt")
-        (t, n) = At.shape
+        (T, N) = X1t.shape
 
-        flock = Flock(name, seg, n, 1, dt)
-        flock.t = t
+        try:
+            At  = load_var(f"{path}/a.txt")
+            Vt  = load_var(f"{path}/v.txt")
+        except:
+            At = []
+            Vt = []
+            for t1, t2 in zip(range(T-1), range(1,T)):
+                A = []
+                V = []
+                for i in range(N):
+                    diffx = X1t[t2][i] - X1t[t1][i]
+                    diffy = X2t[t2][i] - X2t[t1][i]
+                    A.append(np.arctan2(diffy, diffx))
+                    V.append(np.linalg.norm([diffx, diffy]))
+                save_var(A, 'a', path)
+                save_var(V, 'v', path)
+                At.append(A)
+                Vt.append(V)
+
+        flock = Flock(name, seg, N, 1, dt)
+        flock.t = T
         flock.traj['X'] = np.array([ np.stack([ X[i]
                             for X in [X1t, X2t] ], axis = 1)
-                            for i in range(t) ]).astype(float)
+                            for i in range(T) ]).astype(float)
         flock.traj['A'] = At
         flock.traj['V'] = Vt
 
