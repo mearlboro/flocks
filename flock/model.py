@@ -134,6 +134,8 @@ class Flock:
                 save_var(V, 'v', path)
                 At.append(A)
                 Vt.append(V)
+            At = np.array(At).astype(float)
+            Vt = np.array(Vt).astype(float)
 
         flock = Flock(name, seg, N, 1, dt)
         flock.t = T
